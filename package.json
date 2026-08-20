@@ -3,15 +3,63 @@
   "version": "0.1.0",
   "description": "Sistema de PDV moderno",
   "main": "dist-electron/main.cjs",
-  "author": "",
+  "author": "Grupo Maxcenter",
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Usermoda/sistemapdv.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && electron-builder",
     "preview": "vite preview",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dist": "npm run build",
+    "dist:dir": "tsc -b && vite build && electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.grupomaxcenter.sistemapdv",
+    "productName": "Sistema PDV",
+    "copyright": "Copyright © 2026 Grupo Maxcenter",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "db/**",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/serialport/**",
+      "**/node_modules/@serialport/**",
+      "**/node_modules/bindings/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Sistema PDV",
+      "installerLanguages": ["pt_BR"],
+      "language": "1046"
+    }
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

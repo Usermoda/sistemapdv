@@ -1,0 +1,60 @@
+name: Build & Release (Windows)
+
+# Gera o instalador NSIS na nuvem (runner Windows sem Smart App Control) e,
+# quando o gatilho for uma tag de versão (vX.Y.Z), publica o instalador no
+# GitHub Releases. Também pode ser disparado manualmente para validar o build.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write # necessário para criar/atualizar o Release e anexar arquivos
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificação de tipos
+        run: npm run typecheck
+
+      - name: Gerar instalador (NSIS)
+        # --publish never: quem publica no Release é o passo abaixo (softprops),
+        # mantendo o controle explícito sobre o que é anexado.
+        run: npm run build -- --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publicar artefato do build (sempre)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sistema-pdv-windows-${{ github.ref_name }}
+          path: |
+            release/*.exe
+            release/*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publicar no GitHub Releases (apenas em tags vX.Y.Z)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Sistema PDV ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            release/*.exe
+            release/*.zip

@@ -50,10 +50,15 @@ direto para o Login.
 
 ```bash
 npm run typecheck
-npm run build     # gera renderer + main + instalador via electron-builder
+npm run build     # gera renderer + main + instalador (NSIS) + ZIP via electron-builder
 ```
 
 Artefatos ficam em `release/`.
+
+> ⚠️ O build local do instalador **falha em máquinas com Smart App Control (Windows 11)
+> ligado**. O build oficial roda no **GitHub Actions** e publica no **GitHub Releases** a
+> cada tag `vX.Y.Z`. Veja [docs/build-release.md](docs/build-release.md) para o passo a passo
+> de release e [CHANGELOG.md](CHANGELOG.md) para o histórico de versões.
 
 ## Estrutura do projeto
 
@@ -88,6 +93,7 @@ docs/                  # documentação técnica (start aqui)
 - [Hardware](docs/hardware.md) — impressora, gaveta, balança, leitor
 - [Permissões e usuários](docs/permissoes.md) — perfis pré-definidos e customização
 - [Configurações](docs/config.md) — chaves salvas em `userData/`
+- [Build & Release](docs/build-release.md) — gerar o instalador e publicar versões
 
 ## Atalhos globais no PDV
 
