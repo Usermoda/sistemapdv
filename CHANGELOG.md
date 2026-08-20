@@ -8,6 +8,13 @@ e o projeto adota [Versionamento Semântico (SemVer)](https://semver.org/lang/pt
 
 ## [Não lançado]
 
+### Adicionado
+- Script de empacotamento local `scripts/package.ps1` (`npm run package:win`), que aplica
+  os ajustes de ambiente Windows (PATH, `ELECTRON_RUN_AS_NODE`, Modo Desenvolvedor,
+  Smart App Control) antes de gerar o instalador.
+- Documentação do processo de empacotamento e das pegadinhas de ambiente em
+  [`docs/build-release.md`](docs/build-release.md).
+
 ## [0.1.0] - 2026-08-20
 
 ### Adicionado

@@ -31,7 +31,22 @@ via [`.github/workflows/build-release.yml`](../.github/workflows/build-release.y
 
 ### Build local (opcional)
 
-Só funciona se o Smart App Control estiver **desligado** e o Node 20+ instalado:
+Só funciona se o Smart App Control estiver **desligado** e o Node 20+ instalado.
+
+**Forma recomendada — script que já aplica os ajustes de ambiente:**
+
+```powershell
+npm run package:win            # instalador NSIS + ZIP em release/
+# variações:
+powershell -File scripts/package.ps1 -Install    # roda 'npm ci' antes
+powershell -File scripts/package.ps1 -ZipOnly     # só o ZIP (não faz o passo NSIS)
+```
+
+O [`scripts/package.ps1`](../scripts/package.ps1) corrige o PATH, remove
+`ELECTRON_RUN_AS_NODE`, avisa se o Modo Desenvolvedor está off ou o Smart App
+Control está on, builda e lista os artefatos. Veja as *Notas de ambiente* abaixo.
+
+**Forma manual:**
 
 ```bash
 npm ci
@@ -71,6 +86,39 @@ Passo a passo:
 
 Também é possível disparar o workflow manualmente (*Actions → Build & Release → Run workflow*)
 para validar o build sem criar um release.
+
+## Notas de ambiente e problemas encontrados (Windows)
+
+Registro dos obstáculos enfrentados ao montar o primeiro empacotamento e como
+foram resolvidos — o [`scripts/package.ps1`](../scripts/package.ps1) já trata
+os itens 1 a 4 automaticamente.
+
+1. **`npm` não reconhecido.** O Node.js foi instalado (`winget install OpenJS.NodeJS.LTS`),
+   mas terminais abertos *antes* da instalação não enxergam o novo PATH.
+   → Reabrir o terminal, ou recarregar o PATH da sessão (o script faz isso).
+
+2. **App trava ao abrir no dev (`Cannot read properties of undefined (reading 'whenReady')`).**
+   Causa: a variável de ambiente **`ELECTRON_RUN_AS_NODE=1`** estava herdada no processo,
+   fazendo o binário do Electron rodar como Node puro.
+   → Remover a variável antes de `npm run dev`/build (o script faz isso).
+
+3. **Build falha ao extrair o `winCodeSign` (`Cannot create symbolic link: A required privilege is not held`).**
+   O pacote de ferramentas do electron-builder contém symlinks (dylibs de macOS);
+   criá-los no Windows exige privilégio.
+   → Ativar o **Modo Desenvolvedor** (Configurações → Sistema → Para desenvolvedores),
+   que permite criar symlinks sem elevação.
+
+4. **Build do NSIS falha com `spawn UNKNOWN` / *"An Application Control policy has blocked this file"*.**
+   Causa: o **Smart App Control (WDAC)** do Windows 11 bloqueia a execução do instalador
+   temporário **não assinado** que o electron-builder precisa rodar para gerar o desinstalador.
+   → Opções: (a) gerar pelo **GitHub Actions** (runner sem Smart App Control — recomendado);
+   (b) rodar `-ZipOnly` (não executa o stub); ou (c) **desligar o Smart App Control**
+   (⚠️ irreversível — só religa reinstalando o Windows), feito pela Segurança do Windows
+   → Controle de aplicativos e navegador.
+
+5. **Fix de banco relacionado ao empacotamento.** Em máquinas com um MySQL/MariaDB
+   existente sem InnoDB, o setup passou a fazer *fallback* automático para o MariaDB
+   portable — ver [`CHANGELOG.md`](../CHANGELOG.md) (0.1.0).
 
 ## Assinatura digital (futuro)
 
