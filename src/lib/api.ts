@@ -131,7 +131,8 @@ export const api = {
         cb(u as { phase: 'download' | 'extract' | 'init' | 'start'; msg: string; pct: number })
       );
     },
-    test: (cfg: ConnectionConfig) => invoke<{ ok: boolean; error?: string; version?: string }>('db:test-connection', cfg),
+    test: (cfg: ConnectionConfig) =>
+      invoke<{ ok: boolean; error?: string; version?: string; innodb?: boolean }>('db:test-connection', cfg),
     listDatabases: (cfg: ConnectionConfig) => invoke<string[]>('db:list-databases', cfg),
     createDatabase: (cfg: ConnectionConfig, name: string) => invoke<{ ok: boolean }>('db:create-database', cfg, name),
     installSchema: (cfg: ConnectionConfig, database: string) => invoke<{ statements: number }>('db:install-schema', cfg, database),

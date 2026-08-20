@@ -11,7 +11,23 @@ export type ConnectionConfig = {
   database?: string;
 };
 
-export async function testConnection(cfg: ConnectionConfig): Promise<{ ok: boolean; error?: string; version?: string }> {
+/**
+ * Verifica se o servidor conectado tem o storage engine InnoDB disponível.
+ * O PDV depende de InnoDB (transações + foreign keys); um servidor com
+ * `skip-innodb` (have_innodb = DISABLED) faz qualquer CREATE TABLE ... ENGINE=InnoDB
+ * falhar com "Unknown storage engine 'InnoDB'".
+ */
+export async function checkInnodbSupport(conn: mysql.Connection): Promise<boolean> {
+  const [rows] = await conn.query<mysql.RowDataPacket[]>(
+    "SELECT SUPPORT FROM information_schema.ENGINES WHERE ENGINE = 'InnoDB'"
+  );
+  const support = String(rows[0]?.SUPPORT ?? '').toUpperCase();
+  return support === 'YES' || support === 'DEFAULT';
+}
+
+export async function testConnection(
+  cfg: ConnectionConfig
+): Promise<{ ok: boolean; error?: string; version?: string; innodb?: boolean }> {
   try {
     const conn = await mysql.createConnection({
       host: cfg.host,
@@ -21,8 +37,9 @@ export async function testConnection(cfg: ConnectionConfig): Promise<{ ok: boole
       connectTimeout: 5000,
     });
     const [rows] = await conn.query<mysql.RowDataPacket[]>('SELECT VERSION() as v');
+    const innodb = await checkInnodbSupport(conn);
     await conn.end();
-    return { ok: true, version: rows[0]?.v as string };
+    return { ok: true, version: rows[0]?.v as string, innodb };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }

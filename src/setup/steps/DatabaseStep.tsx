@@ -96,24 +96,58 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
     setTesting(true);
     setTestResult(null);
     const r = await api.db.test(cfg);
-    setTestResult({ ok: r.ok, message: r.ok ? `Conectado — MySQL ${r.version ?? ''}` : r.error ?? 'Erro ao conectar' });
+    if (r.ok && r.innodb === false) {
+      setTestResult({
+        ok: true,
+        message: `Conectado — MySQL ${r.version ?? ''} (⚠ InnoDB desativado: será usado o MariaDB portable ao instalar)`,
+      });
+    } else {
+      setTestResult({ ok: r.ok, message: r.ok ? `Conectado — MySQL ${r.version ?? ''}` : r.error ?? 'Erro ao conectar' });
+    }
     setTesting(false);
   };
 
   const handleInstallSchema = async () => {
     setInstalling(true);
-    setProgress({ msg: 'Criando banco de dados...', pct: 0 });
+    setProgress({ msg: 'Verificando servidor...', pct: 0 });
     try {
-      await api.db.createDatabase(cfg, dbName);
-      setProgress({ msg: 'Instalando estrutura...', pct: 5 });
-      await api.db.installSchema(cfg, dbName);
-      await api.db.saveConfig({ ...cfg, database: dbName });
+      let effectiveCfg = cfg;
+
+      // 1) Confirma conexão e disponibilidade do InnoDB (o PDV exige InnoDB).
+      const test = await api.db.test(cfg);
+      if (!test.ok) throw new Error(test.error ?? 'Falha ao conectar no servidor informado');
+
+      // 2) Servidor sem InnoDB (ex.: MySQL com skip-innodb) → provisiona o
+      //    MariaDB portable automaticamente e passa a usá-lo, sem intervenção manual.
+      if (test.innodb === false) {
+        toast.warning('Servidor sem InnoDB — instalando o MariaDB portable automaticamente...');
+        setInstalling(false);
+        setAutoInstalling(true);
+        setAutoProgress({ phase: 'download', msg: 'Preparando MariaDB portable...', pct: 0 });
+        const r = await api.db.installBundled();
+        setAutoInstalling(false);
+        if (!r.ok) throw new Error(`Falha ao instalar o MariaDB portable: ${r.error}`);
+        effectiveCfg = { host: '127.0.0.1', port: r.port ?? 3306, user: 'root', password: '' };
+        setCfg(effectiveCfg);
+        await runDetection();
+        toast.success(`MariaDB portable pronto na porta ${effectiveCfg.port} (com InnoDB)`);
+        setInstalling(true);
+      }
+
+      // 3) Cria o banco e instala a estrutura no servidor efetivo (InnoDB garantido).
+      setProgress({ msg: 'Criando banco de dados...', pct: 5 });
+      await api.db.createDatabase(effectiveCfg, dbName);
+      setProgress({ msg: 'Instalando estrutura...', pct: 10 });
+      await api.db.installSchema(effectiveCfg, dbName);
+      await api.db.saveConfig({ ...effectiveCfg, database: dbName });
       setInstalled(true);
       toast.success('Banco de dados instalado com sucesso!');
     } catch (e) {
       toast.error(`Erro na instalação: ${(e as Error).message}`);
+    } finally {
+      setInstalling(false);
+      setAutoInstalling(false);
     }
-    setInstalling(false);
   };
 
   const showAutoInstall =
