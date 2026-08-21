@@ -71,7 +71,7 @@ export async function executeSchema(
   database: string,
   sql: string,
   onProgress?: (msg: string, pct: number) => void
-): Promise<{ statements: number }> {
+): Promise<{ statements: number; failures: Array<{ preview: string; error: string }> }> {
   const conn = await mysql.createConnection({
     ...cfg,
     database,
@@ -81,6 +81,7 @@ export async function executeSchema(
   try {
     const statements = splitSqlStatements(sql);
     let done = 0;
+    const failures: Array<{ preview: string; error: string }> = [];
     for (const stmt of statements) {
       const trimmed = stmt.trim();
       if (!trimmed) continue;
@@ -88,12 +89,21 @@ export async function executeSchema(
         await conn.query(trimmed);
       } catch (e) {
         const msg = (e as Error).message;
-        if (!/exists|Duplicate/i.test(msg)) throw e;
+        // Tolera "já existe / duplicado" (schema idempotente).
+        // Loga mas continua nos demais erros — apply best-effort e reporta.
+        if (!/exists|Duplicate/i.test(msg)) {
+          const preview = trimmed.replace(/\s+/g, ' ').slice(0, 120);
+          failures.push({ preview, error: msg });
+          console.warn('[executeSchema] statement falhou:', preview, '→', msg);
+        }
       }
       done++;
       onProgress?.(`Aplicando estrutura ${done}/${statements.length}`, Math.round((done / statements.length) * 100));
     }
-    return { statements: done };
+    if (failures.length > 0) {
+      console.warn(`[executeSchema] ${failures.length} statement(s) falharam. As tabelas correspondentes NÃO foram criadas — verifique os logs acima.`);
+    }
+    return { statements: done, failures };
   } finally {
     await conn.end();
   }

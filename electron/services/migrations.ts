@@ -1,5 +1,9 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { app } from 'electron';
 import type { Pool, RowDataPacket } from 'mysql2/promise';
-import { getPool } from './db';
+import { getPool, executeSchema, type ConnectionConfig } from './db';
+import { getConfig } from './config';
 
 async function columnExists(pool: Pool, table: string, column: string): Promise<boolean> {
   const [rows] = await pool.query<RowDataPacket[]>(
@@ -20,6 +24,99 @@ async function tableExists(pool: Pool, table: string): Promise<boolean> {
 }
 
 /**
+ * Tabelas que o app queries em runtime — sem elas ele quebra.
+ * Se qualquer uma faltar no boot, re-executamos o schema.sql (idempotente
+ * com IF NOT EXISTS) para preencher as lacunas.
+ */
+const CORE_TABLES = [
+  'cad_empresa',
+  'cad_login',
+  'cad_login_perfil',
+  'cad_produtos',
+  'cad_produtos_tipo',
+  'cad_produtos_fornecedores',
+  'cad_clientes',
+  'cad_fornecedores',
+  'cad_modo_lancamento',
+  'cad_conta',
+  'cad_planejamento',
+  'cad_lancamentos',
+  'mv_caixa',
+  'mv_vendas',
+  'mv_vendas_movimento',
+  'mv_estoque_historico',
+];
+
+/**
+ * Localiza o schema.sql tanto em dev (raiz do projeto) quanto em prod
+ * (empacotado dentro do resources/app.asar/db/schema.sql).
+ */
+async function findSchemaFile(): Promise<string | null> {
+  const candidates = [
+    path.join(process.env.APP_ROOT ?? '', 'db', 'schema.sql'),
+    path.join(app.getAppPath(), 'db', 'schema.sql'),
+    path.join(process.resourcesPath ?? '', 'app.asar', 'db', 'schema.sql'),
+    path.join(process.resourcesPath ?? '', 'db', 'schema.sql'),
+  ];
+  for (const c of candidates) {
+    try {
+      await fs.access(c);
+      return c;
+    } catch {
+      // continua
+    }
+  }
+  return null;
+}
+
+/**
+ * Verifica todas as tabelas essenciais e, se faltar alguma, re-aplica o
+ * schema.sql (idempotente) para tentar recriar. Retorna a lista final de
+ * tabelas faltantes (idealmente vazia).
+ */
+async function ensureCoreTables(pool: Pool): Promise<string[]> {
+  const missing: string[] = [];
+  for (const t of CORE_TABLES) {
+    if (!(await tableExists(pool, t))) missing.push(t);
+  }
+  if (missing.length === 0) return [];
+
+  console.warn(`[migrations] Tabelas essenciais faltando: ${missing.join(', ')}. Tentando re-aplicar schema.sql...`);
+  const schemaFile = await findSchemaFile();
+  if (!schemaFile) {
+    console.error('[migrations] schema.sql não encontrado — não é possível recriar tabelas faltantes automaticamente.');
+    return missing;
+  }
+  const cfg = getConfig();
+  const conn: ConnectionConfig = {
+    host: cfg.get('db.host') ?? '127.0.0.1',
+    port: cfg.get('db.port') ?? 3306,
+    user: cfg.get('db.user') ?? 'root',
+    password: cfg.get('db.password') ?? '',
+  };
+  const database = cfg.get('db.database') ?? 'sistema_pdv';
+  try {
+    const sql = await fs.readFile(schemaFile, 'utf8');
+    const r = await executeSchema(conn, database, sql);
+    console.log(`[migrations] schema.sql re-aplicado: ${r.statements} statements, ${r.failures.length} falha(s).`);
+  } catch (e) {
+    console.error('[migrations] Falha ao re-aplicar schema.sql:', (e as Error).message);
+  }
+
+  // Verifica de novo — o que ainda falta?
+  const stillMissing: string[] = [];
+  for (const t of CORE_TABLES) {
+    if (!(await tableExists(pool, t))) stillMissing.push(t);
+  }
+  if (stillMissing.length > 0) {
+    console.error(`[migrations] Tabelas ainda faltando após re-aplicar schema.sql: ${stillMissing.join(', ')}. Verifique manualmente.`);
+  } else {
+    console.log('[migrations] Todas as tabelas essenciais estão OK agora.');
+  }
+  return stillMissing;
+}
+
+/**
  * Runs idempotent migrations on startup. Safe to call every time — each step
  * checks if the change is already applied.
  */
@@ -31,6 +128,9 @@ export async function runMigrations(): Promise<void> {
     // DB not configured yet — will run again after setup completes
     return;
   }
+
+  // -------- 000: Verificar tabelas essenciais e recriar se faltarem --------
+  await ensureCoreTables(pool);
 
   // -------- 000: Auth — password column widening --------
   const [passwordCol] = await pool.query<RowDataPacket[]>(
