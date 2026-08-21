@@ -51,7 +51,7 @@ Pronto. Em até ~15min todos os Bipas em produção recebem a notificação.
 O fluxo é **silencioso por padrão** — o cliente não precisa clicar em nada:
 
 1. Abre o Bipa como sempre.
-2. **5 segundos após o boot** e depois **a cada 15 minutos** enquanto o app
+2. **5 segundos após o boot** e depois **a cada 1 hora** enquanto o app
    estiver aberto, o Bipa checa o GitHub. Se houver versão nova:
 3. **Download automático** em segundo plano usando **deltas** via blockmap —
    só os pedaços que mudaram, tipicamente 5–15 MB. Um toast discreto

@@ -125,7 +125,7 @@ export function initUpdater(): void {
     return { ok: true };
   });
 
-  // Check silenciosa: primeira 5s após o boot, depois a cada 15 minutos
+  // Check silenciosa: primeira 5s após o boot, depois a cada 1 hora
   // enquanto o app estiver rodando. POS fica aberto o dia todo, então
   // check periódico garante que ninguém fica "esquecido" numa versão antiga.
   const scheduleChecks = () => {
@@ -134,7 +134,7 @@ export function initUpdater(): void {
       autoUpdater.checkForUpdates().catch((e) => console.warn('[updater] check falhou:', e));
     };
     setTimeout(doCheck, 5_000);
-    setInterval(doCheck, 15 * 60 * 1000); // 15 minutos
+    setInterval(doCheck, 60 * 60 * 1000); // 1 hora
   };
   scheduleChecks();
 }
