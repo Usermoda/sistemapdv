@@ -45,7 +45,7 @@ export function MarcarPagoDialog({ launch, onClose, onSaved }: { launch: Launch;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
           <div className="mx-auto w-14 h-14 rounded-xl bg-success/10 flex items-center justify-center mb-2">
             <CheckCircle2 className="w-7 h-7 text-success" />

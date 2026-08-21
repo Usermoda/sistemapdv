@@ -103,7 +103,7 @@ export function EstoqueEntradaDialog({ open, onOpenChange, onSaved }: { open: bo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Ajuste de estoque</DialogTitle>
         </DialogHeader>

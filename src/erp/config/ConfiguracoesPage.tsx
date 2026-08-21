@@ -171,14 +171,14 @@ function InlineWrap({
   inline,
   onClose,
   title,
-  maxWidth = 'max-w-2xl',
+  
   body,
   footer,
 }: {
   inline?: boolean;
   onClose?: () => void;
   title?: string;
-  maxWidth?: string;
+  
   body: React.ReactNode;
   footer?: React.ReactNode;
 }) {
@@ -192,7 +192,7 @@ function InlineWrap({
   }
   return (
     <Dialog open onOpenChange={(o) => !o && onClose?.()}>
-      <DialogContent className={maxWidth}>
+      <DialogContent>
         {title && (
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
@@ -268,7 +268,7 @@ function PdvPrefsDialog({ onClose, inline }: { onClose?: () => void; inline?: bo
       inline={inline}
       onClose={onClose}
       title="Preferências do PDV"
-      maxWidth="max-w-lg"
+
       body={body}
       footer={!inline && <Button onClick={onClose}>Fechar</Button>}
     />
@@ -437,7 +437,7 @@ function PaymentMethodsDialog({ onClose, inline }: { onClose?: () => void; inlin
       inline={inline}
       onClose={onClose}
       title="Formas de pagamento"
-      maxWidth="max-w-lg"
+
       body={body}
       footer={!inline && <Button variant="ghost" onClick={onClose}>Fechar</Button>}
     />
@@ -604,7 +604,7 @@ function BackupDialog({ onClose, inline }: { onClose?: () => void; inline?: bool
       inline={inline}
       onClose={onClose}
       title="Backup do banco"
-      maxWidth="max-w-2xl"
+
       body={body}
       footer={!inline && <Button variant="ghost" onClick={onClose}>Fechar</Button>}
     />
@@ -757,7 +757,7 @@ function UsersDialog({ onClose, inline }: { onClose?: () => void; inline?: boole
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose?.()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Usuários e perfis</DialogTitle>
         </DialogHeader>
@@ -817,7 +817,7 @@ function ProfileFormInline({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{initial ? `Editar ${initial.nome_perfil}` : 'Novo perfil'}</DialogTitle>
         </DialogHeader>
@@ -933,7 +933,7 @@ function UserFormInline({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{initial ? `Editar ${initial.login}` : 'Novo usuário'}</DialogTitle>
         </DialogHeader>
@@ -1126,7 +1126,7 @@ function FiscalDialog({ onClose, inline }: { onClose?: () => void; inline?: bool
       inline={inline}
       onClose={onClose}
       title="Emissão fiscal (NFCe)"
-      maxWidth="max-w-2xl"
+
       body={body}
       footer={
         <>
@@ -1217,7 +1217,7 @@ function CompanyDialog({ onClose, inline }: { onClose?: () => void; inline?: boo
       inline={inline}
       onClose={onClose}
       title="Dados da empresa"
-      maxWidth="max-w-2xl"
+
       body={body}
       footer={
         <>
@@ -1389,7 +1389,7 @@ function PrinterDialog({ onClose, inline }: { onClose?: () => void; inline?: boo
       inline={inline}
       onClose={onClose}
       title="Impressora e gaveta"
-      maxWidth="max-w-lg"
+
       body={body}
       footer={
         <>
@@ -1484,7 +1484,7 @@ function ScaleDialog({ onClose, inline }: { onClose?: () => void; inline?: boole
       inline={inline}
       onClose={onClose}
       title="Balança"
-      maxWidth="max-w-lg"
+
       body={body}
       footer={
         <>
@@ -1642,7 +1642,7 @@ function SistemaPanel({ onGoEmpresa }: { onGoEmpresa: () => void }) {
 
       {/* Dialog de confirmação — refazer wizard */}
       <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
-        <DialogContent className="max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <RotateCcw className="w-5 h-5 text-warning" />

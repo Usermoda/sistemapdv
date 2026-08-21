@@ -53,7 +53,7 @@ export function CashierCloseDialog({ open, cashierId, onOpenChange, onClosed }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent>
         <DialogHeader>
           <div className="mx-auto w-14 h-14 rounded-xl bg-warning/10 flex items-center justify-center mb-2">
             <Wallet className="w-7 h-7 text-warning" />

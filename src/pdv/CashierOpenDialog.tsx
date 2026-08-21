@@ -30,7 +30,7 @@ export function CashierOpenDialog({ open, onOpened }: { open: boolean; onOpened:
 
   return (
     <Dialog open={open}>
-      <DialogContent hideClose className="max-w-md">
+      <DialogContent hideClose>
         <DialogHeader>
           <div className="mx-auto w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-2">
             <Wallet className="w-7 h-7 text-primary" />

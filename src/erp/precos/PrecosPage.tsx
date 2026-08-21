@@ -332,7 +332,7 @@ function MarkupDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Aplicar markup em massa</DialogTitle>
         </DialogHeader>
@@ -629,7 +629,7 @@ function PromotionFormDialog({ onClose, onSaved }: { onClose: () => void; onSave
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col">
+      <DialogContent size="lg" className="max-h-[92vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Nova promoção</DialogTitle>
         </DialogHeader>

@@ -201,7 +201,7 @@ export function VendaDetailsDialog({ id, onClose }: { id: number; onClose: () =>
   return (
     <>
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Detalhes da venda</DialogTitle>
         </DialogHeader>
@@ -349,7 +349,7 @@ export function VendaDetailsDialog({ id, onClose }: { id: number; onClose: () =>
     {preview && <ReceiptPreview data={preview} onClose={() => setPreview(null)} />}
 
     <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent>
           <DialogHeader>
             <div className="mx-auto w-14 h-14 rounded-xl bg-destructive/10 flex items-center justify-center mb-2">
               <Ban className="w-7 h-7 text-destructive" />

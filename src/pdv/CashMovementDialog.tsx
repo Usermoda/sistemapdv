@@ -51,7 +51,7 @@ export function CashMovementDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Movimento de caixa</DialogTitle>
         </DialogHeader>

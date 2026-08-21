@@ -38,7 +38,7 @@ export function ClientPickerDialog({ open, onOpenChange }: { open: boolean; onOp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Selecionar Cliente</DialogTitle>
         </DialogHeader>

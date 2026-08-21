@@ -120,7 +120,7 @@ export function ReceiptPreview({ data, onClose }: { data: ReceiptData; onClose: 
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent hideClose className="max-w-md p-0 gap-0 max-h-[90vh] flex flex-col">
+      <DialogContent hideClose className="p-0 gap-0 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-4 py-2 border-b border-white/5">
           <div className="text-sm font-semibold">Comprovante de venda</div>
           <div className="flex gap-1">

@@ -589,7 +589,7 @@ function ExpandedPreview({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {isRoll ? `Bobina térmica ${rollWidthMm}mm` : 'Folha A4'} · Etiqueta {size.widthMm}×{size.heightMm}mm

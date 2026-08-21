@@ -106,7 +106,7 @@ export function RecentSalesDialog({ open, onOpenChange }: { open: boolean; onOpe
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogContent className="max-h-[80vh] flex flex-col">
           <DialogHeader>
             <div className="flex items-center justify-between pr-8">
               <div>

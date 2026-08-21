@@ -48,7 +48,7 @@ export function CartItemEditDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Editar item</DialogTitle>
         </DialogHeader>

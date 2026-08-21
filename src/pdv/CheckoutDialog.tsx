@@ -387,7 +387,7 @@ export function CheckoutDialog({ open, onOpenChange, onComplete }: { open: boole
   if (done) {
     return (
       <Dialog open={open} onOpenChange={closeAndReset}>
-        <DialogContent hideClose className="max-w-md">
+        <DialogContent hideClose>
           <motion.div initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center space-y-4 py-6">
             <div className="w-20 h-20 mx-auto rounded-full bg-success/20 flex items-center justify-center">
               <CheckCircle2 className="w-12 h-12 text-success" />
@@ -466,7 +466,7 @@ export function CheckoutDialog({ open, onOpenChange, onComplete }: { open: boole
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+      <DialogContent size="lg" className="max-h-[90vh] overflow-auto">
         <DialogHeader>
           <DialogTitle>Finalizar venda</DialogTitle>
         </DialogHeader>
