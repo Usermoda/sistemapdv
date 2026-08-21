@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Building2, Printer, Scale, Wallet, FileCheck2, Users2, Plus, KeyRound, Loader2, Power, PowerOff, HardDrive, Download, Trash2, FolderOpen, RotateCcw, CreditCard, Lock, Check, X, MousePointer2, ShieldCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Building2, Printer, Scale, Wallet, FileCheck2, Users2, Plus, KeyRound, Loader2, Power, PowerOff, HardDrive, Download, Trash2, FolderOpen, RotateCcw, CreditCard, Lock, Check, X, MousePointer2, ShieldCheck, Server, Network } from 'lucide-react';
 import { usePrefs } from '@/stores/prefsStore';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,7 @@ type CompanyForm = {
   casas_decimais?: number;
 };
 
-type SectionKey = 'empresa' | 'usuarios' | 'impressora' | 'balanca' | 'fiscal' | 'pagamentos' | 'pdv' | 'backup';
+type SectionKey = 'empresa' | 'usuarios' | 'impressora' | 'balanca' | 'fiscal' | 'pagamentos' | 'pdv' | 'backup' | 'sistema';
 
 export function ConfiguracoesPage() {
   const [tab, setTab] = useState<SectionKey>('empresa');
@@ -85,6 +86,12 @@ export function ConfiguracoesPage() {
       icon: HardDrive,
       title: 'Backup do banco',
       description: 'Backup automático agendado + backups manuais e restauração',
+    },
+    {
+      key: 'sistema',
+      icon: Server,
+      title: 'Instalação e terminal',
+      description: 'Modo (servidor/terminal), reidentificar empresa, refazer wizard',
     },
   ];
 
@@ -142,6 +149,7 @@ export function ConfiguracoesPage() {
               {tab === 'pagamentos' && <PaymentMethodsPanel />}
               {tab === 'pdv' && <PdvPrefsPanel />}
               {tab === 'backup' && <BackupPanel />}
+              {tab === 'sistema' && <SistemaPanel onGoEmpresa={() => setTab('empresa')} />}
             </div>
           </div>
         </section>
@@ -1487,5 +1495,161 @@ function ScaleDialog({ onClose, inline }: { onClose?: () => void; inline?: boole
         </>
       }
     />
+  );
+}
+
+/* ============================================================
+ * SistemaPanel — Instalação, modo (servidor/terminal), reconfigurar
+ * ============================================================ */
+
+function SistemaPanel({ onGoEmpresa }: { onGoEmpresa: () => void }) {
+  const navigate = useNavigate();
+  const [empresa, setEmpresa] = useState<{ nome_empresa?: string; cpf_cpnj?: string } | null>(null);
+  const [status, setStatus] = useState<{ mode: 'server' | 'terminal'; dbHost?: string; dbPort?: number } | null>(null);
+  const [lanInfo, setLanInfo] = useState<{ shareOnLan: boolean; lanIps: string[]; port: number; bundled: boolean } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const s = await api.getSetupStatus();
+        const e = await api.setup.getCompany();
+        const lan = await api.db.getLanInfo();
+        setStatus({ mode: s.mode });
+        setEmpresa(e ?? null);
+        setLanInfo(lan);
+      } catch (err) {
+        toast.error((err as Error).message);
+      }
+    })();
+  }, []);
+
+  const restartWizard = () => {
+    // A rota /setup/* não passa pelo SetupGuard — abre o wizard direto.
+    // Nada é apagado: os dados persistem e o wizard funciona como "editor".
+    navigate('/setup/welcome');
+  };
+
+  const toggleLan = async (enabled: boolean) => {
+    setBusy(true);
+    try {
+      const r = await api.db.setLanSharing(enabled);
+      if (!r.ok) throw new Error(r.error ?? 'Falha');
+      setLanInfo((prev) => (prev ? { ...prev, shareOnLan: !!r.enabled, lanIps: r.lanIps ?? prev.lanIps, port: r.port ?? prev.port } : prev));
+      toast.success(enabled ? 'Compartilhamento LAN ativado' : 'Compartilhamento LAN desativado');
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Identificação */}
+      <div className="rounded-xl border border-white/5 bg-card/50 p-5">
+        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Identificação</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <InfoRow icon={<Building2 className="w-4 h-4" />} label="Empresa" value={empresa?.nome_empresa ?? '—'} sub={empresa?.cpf_cpnj ?? undefined} />
+          <InfoRow
+            icon={<Server className="w-4 h-4" />}
+            label="Modo desta instalação"
+            value={status?.mode === 'terminal' ? 'Terminal adicional' : 'Servidor principal'}
+            sub={status?.mode === 'terminal' ? 'Conectado a um servidor remoto' : 'Hospeda o banco de dados'}
+          />
+        </div>
+        <div className="mt-4 flex gap-2">
+          <Button variant="outline" onClick={onGoEmpresa}>
+            <Building2 className="w-4 h-4" /> Editar dados da empresa
+          </Button>
+          <Button variant="ghost" onClick={() => setConfirmReset(true)}>
+            <RotateCcw className="w-4 h-4" /> Refazer wizard
+          </Button>
+        </div>
+      </div>
+
+      {/* Rede local (só faz sentido no modo servidor com MariaDB portable) */}
+      {status?.mode === 'server' && lanInfo?.bundled && (
+        <div className="rounded-xl border border-white/5 bg-card/50 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Rede local</div>
+              <div className="mt-1 font-semibold flex items-center gap-2">
+                <Network className="w-4 h-4 text-primary" />
+                Compartilhar com outros terminais
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Libera o MariaDB portable para receber conexões de outros PCs na mesma rede.
+              </div>
+            </div>
+            <Switch checked={lanInfo.shareOnLan} onCheckedChange={toggleLan} disabled={busy} />
+          </div>
+          {lanInfo.shareOnLan && lanInfo.lanIps.length > 0 && (
+            <div className="mt-4 rounded-lg bg-black/20 p-3 space-y-2 text-xs">
+              <div className="text-muted-foreground">Endereços para configurar nos terminais:</div>
+              <div className="space-y-1 font-mono">
+                {lanInfo.lanIps.map((ip) => (
+                  <div key={ip} className="text-primary">{ip}:{lanInfo.port}</div>
+                ))}
+              </div>
+              <div className="text-[11px] text-warning pt-1 border-t border-white/5 mt-2">
+                ⚠ Confirme que a porta {lanInfo.port} está aberta no Firewall do Windows.
+                Veja <code className="text-foreground">docs/multi-terminal.md</code>.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Dialog de confirmação — refazer wizard */}
+      <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-warning" />
+              Refazer configuração inicial
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              O wizard vai reabrir do início. <strong>Nenhum dado é apagado</strong> — sua empresa,
+              usuários, produtos e vendas permanecem. Você pode ajustar qualquer etapa que
+              precise (mudar servidor, trocar impressora, etc.).
+            </p>
+            <p className="text-muted-foreground text-xs">
+              Se você quiser <strong>trocar de modo</strong> (servidor ↔ terminal), essa é a via.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setConfirmReset(false)}>Cancelar</Button>
+            <Button
+              onClick={() => {
+                setConfirmReset(false);
+                void restartWizard();
+              }}
+              disabled={busy}
+            >
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+              Abrir wizard
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function InfoRow({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-lg bg-black/20 p-3 flex items-center gap-3">
+      <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className="text-sm font-semibold truncate">{value}</div>
+        {sub && <div className="text-[11px] text-muted-foreground truncate">{sub}</div>}
+      </div>
+    </div>
   );
 }
