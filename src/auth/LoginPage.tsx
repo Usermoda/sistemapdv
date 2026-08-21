@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { BipaLogo } from '@/components/BipaLogo';
 import { useAuth } from '@/stores/authStore';
 import { useNavigate } from 'react-router-dom';
+import { api, isElectron } from '@/lib/api';
 import { isPdvOnly, parsePermissions } from '@/lib/permissions';
 
 const STORAGE_KEY = 'pdv.rememberedLogin';
@@ -35,7 +36,14 @@ export function LoginPage() {
   const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState<string>('');
   const autoTried = useRef(false);
+
+  useEffect(() => {
+    if (isElectron()) {
+      api.updater.getState().then((r) => setAppVersion(r.currentVersion)).catch(() => undefined);
+    }
+  }, []);
 
   const doLogin = async (u: string, p: string): Promise<boolean> => {
     setLoading(true);
@@ -193,6 +201,12 @@ export function LoginPage() {
           <p className="text-center text-[11px] text-white/50">
             Padrão: <code className="text-white/80">admin</code> / <code className="text-white/80">123456</code>
           </p>
+
+          {appVersion && (
+            <div className="text-center text-[10px] text-white/40 -mt-4 font-mono">
+              Bipa v{appVersion}
+            </div>
+          )}
         </motion.form>
 
       </div>
