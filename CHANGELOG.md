@@ -8,6 +8,22 @@ e o projeto adota [Versionamento Semântico (SemVer)](https://semver.org/lang/pt
 
 ## [Não lançado]
 
+## [0.1.9] - 2026-08-21
+
+### Alterado
+- Release de validação do update silencioso. Ao aplicar esta versão a partir
+  da 0.1.8, o wizard do NSIS não abre — só o Bipa fecha e reabre 3-5s depois
+  na 0.1.9. Confira no login: `Bipa v0.1.9`.
+
+## [0.1.8] - 2026-08-21
+
+### Corrigido
+- `updater:install` agora chama `quitAndInstall(true, true)` — o `isSilent=true`
+  passa `/S` pro NSIS, pulando as telas de "onde instalar / para quem". Fluxo
+  vira: Bipa fecha → instalador silencioso (3-5s sem UI) → Bipa reabre.
+  (Só terá efeito a partir das atualizações FEITAS pela 0.1.8, ou seja, na
+  0.1.9 em diante — updater da 0.1.7 e anteriores ainda usa `isSilent=false`.)
+
 ## [0.1.4] - 2026-08-21
 
 ### Alterado
