@@ -7,6 +7,8 @@ type Channel =
   | 'app:get-auto-start'
   | 'app:set-auto-start'
   | 'app:create-shortcut'
+  | 'system:add-firewall-rule'
+  | 'system:remove-firewall-rule'
   | 'db:detect-mysql'
   | 'db:test-connection'
   | 'db:list-databases'

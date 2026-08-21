@@ -115,6 +115,10 @@ export const api = {
   getAutoStart: () => invoke<{ enabled: boolean }>('app:get-auto-start'),
   setAutoStart: (enabled: boolean) => invoke<{ ok: boolean }>('app:set-auto-start', enabled),
   createShortcut: () => invoke<{ ok: boolean; error?: string; path?: string }>('app:create-shortcut'),
+  addFirewallRule: (port: number, name?: string) =>
+    invoke<{ ok: boolean; error?: string }>('system:add-firewall-rule', { port, name }),
+  removeFirewallRule: (name?: string) =>
+    invoke<{ ok: boolean; error?: string }>('system:remove-firewall-rule', { name }),
 
   db: {
     detect: (port?: number) =>

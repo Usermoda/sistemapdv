@@ -151,6 +151,45 @@ app.whenReady().then(async () => {
     }
   });
 
+  // Cria/remove regra de Firewall do Windows para uma porta TCP. Requer admin,
+  // então spawna netsh via PowerShell Start-Process -Verb RunAs (dispara UAC).
+  ipcMain.handle('system:add-firewall-rule', async (_e, args: { port: number; name?: string }) => {
+    if (process.platform !== 'win32') return { ok: false, error: 'Somente Windows' };
+    const name = (args.name ?? 'Bipa MariaDB').replace(/["'`]/g, '');
+    const port = Number(args.port);
+    if (!Number.isFinite(port) || port < 1 || port > 65535) return { ok: false, error: 'Porta inválida' };
+
+    return new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      // Remove qualquer regra anterior com o mesmo nome (idempotente) e cria a nova.
+      const psCmd = `$rules = @( 'advfirewall firewall delete rule name=\\\"${name}\\\"'; 'advfirewall firewall add rule name=\\\"${name}\\\" dir=in action=allow protocol=TCP localport=${port} profile=any' ); foreach ($r in $rules) { Start-Process -Wait -Verb RunAs -WindowStyle Hidden -FilePath netsh.exe -ArgumentList $r }`;
+      import('node:child_process').then(({ spawn }) => {
+        const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', psCmd], { windowsHide: true });
+        let stderr = '';
+        child.stderr?.on('data', (d) => { stderr += d.toString(); });
+        child.on('exit', (code) => {
+          if (code === 0) resolve({ ok: true });
+          else resolve({ ok: false, error: stderr.trim() || `netsh saiu com código ${code}` });
+        });
+        child.on('error', (e) => resolve({ ok: false, error: e.message }));
+      });
+    });
+  });
+
+  ipcMain.handle('system:remove-firewall-rule', async (_e, args: { name?: string }) => {
+    if (process.platform !== 'win32') return { ok: false, error: 'Somente Windows' };
+    const name = (args.name ?? 'Bipa MariaDB').replace(/["'`]/g, '');
+    return new Promise<{ ok: boolean; error?: string }>((resolve) => {
+      const psCmd = `Start-Process -Wait -Verb RunAs -WindowStyle Hidden -FilePath netsh.exe -ArgumentList 'advfirewall firewall delete rule name=\\\"${name}\\\"'`;
+      import('node:child_process').then(({ spawn }) => {
+        const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', psCmd], { windowsHide: true });
+        let stderr = '';
+        child.stderr?.on('data', (d) => { stderr += d.toString(); });
+        child.on('exit', (code) => resolve(code === 0 ? { ok: true } : { ok: false, error: stderr.trim() }));
+        child.on('error', (e) => resolve({ ok: false, error: e.message }));
+      });
+    });
+  });
+
   createWindow();
 });
 

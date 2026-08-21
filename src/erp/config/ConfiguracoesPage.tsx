@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Printer, Scale, Wallet, FileCheck2, Users2, Plus, KeyRound, Loader2, Power, PowerOff, HardDrive, Download, Trash2, FolderOpen, RotateCcw, CreditCard, Lock, Check, X, MousePointer2, ShieldCheck, Server, Network } from 'lucide-react';
+import { Building2, Printer, Scale, Wallet, FileCheck2, Users2, Plus, KeyRound, Loader2, Power, PowerOff, HardDrive, Download, Trash2, FolderOpen, RotateCcw, CreditCard, Lock, Check, X, MousePointer2, ShieldCheck, Server, Network, ShieldAlert } from 'lucide-react';
 import { usePrefs } from '@/stores/prefsStore';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -1509,6 +1509,7 @@ function SistemaPanel({ onGoEmpresa }: { onGoEmpresa: () => void }) {
   const [lanInfo, setLanInfo] = useState<{ shareOnLan: boolean; lanIps: string[]; port: number; bundled: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [addingFwRule, setAddingFwRule] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -1529,6 +1530,31 @@ function SistemaPanel({ onGoEmpresa }: { onGoEmpresa: () => void }) {
     // A rota /setup/* não passa pelo SetupGuard — abre o wizard direto.
     // Nada é apagado: os dados persistem e o wizard funciona como "editor".
     navigate('/setup/welcome');
+  };
+
+  const openFirewallPort = async () => {
+    if (!lanInfo) return;
+    setAddingFwRule(true);
+    try {
+      const r = await api.addFirewallRule(lanInfo.port, 'Bipa MariaDB');
+      if (!r.ok) throw new Error(r.error ?? 'Falha');
+      toast.success(`Porta ${lanInfo.port} liberada no Firewall`);
+    } catch (e) {
+      toast.error(`Firewall: ${(e as Error).message}`);
+    }
+    setAddingFwRule(false);
+  };
+
+  const removeFirewallRule = async () => {
+    setAddingFwRule(true);
+    try {
+      const r = await api.removeFirewallRule('Bipa MariaDB');
+      if (!r.ok) throw new Error(r.error ?? 'Falha');
+      toast.success('Regra do Firewall removida');
+    } catch (e) {
+      toast.error(`Firewall: ${(e as Error).message}`);
+    }
+    setAddingFwRule(false);
   };
 
   const toggleLan = async (enabled: boolean) => {
@@ -1585,16 +1611,26 @@ function SistemaPanel({ onGoEmpresa }: { onGoEmpresa: () => void }) {
             <Switch checked={lanInfo.shareOnLan} onCheckedChange={toggleLan} disabled={busy} />
           </div>
           {lanInfo.shareOnLan && lanInfo.lanIps.length > 0 && (
-            <div className="mt-4 rounded-lg bg-black/20 p-3 space-y-2 text-xs">
-              <div className="text-muted-foreground">Endereços para configurar nos terminais:</div>
-              <div className="space-y-1 font-mono">
-                {lanInfo.lanIps.map((ip) => (
-                  <div key={ip} className="text-primary">{ip}:{lanInfo.port}</div>
-                ))}
+            <div className="mt-4 rounded-lg bg-black/20 p-3 space-y-3 text-xs">
+              <div>
+                <div className="text-muted-foreground mb-1">Endereços para configurar nos terminais:</div>
+                <div className="space-y-1 font-mono">
+                  {lanInfo.lanIps.map((ip) => (
+                    <div key={ip} className="text-primary">{ip}:{lanInfo.port}</div>
+                  ))}
+                </div>
               </div>
-              <div className="text-[11px] text-warning pt-1 border-t border-white/5 mt-2">
-                ⚠ Confirme que a porta {lanInfo.port} está aberta no Firewall do Windows.
-                Veja <code className="text-foreground">docs/multi-terminal.md</code>.
+              <div className="pt-2 border-t border-white/5 flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="outline" onClick={openFirewallPort} disabled={addingFwRule}>
+                  {addingFwRule ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                  Liberar porta {lanInfo.port} no Firewall
+                </Button>
+                <Button size="sm" variant="ghost" onClick={removeFirewallRule} disabled={addingFwRule}>
+                  <ShieldAlert className="w-3.5 h-3.5" /> Remover regra
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  Vai pedir permissão de administrador (UAC).
+                </span>
               </div>
             </div>
           )}

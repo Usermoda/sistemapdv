@@ -43,21 +43,25 @@ Na máquina que vai hospedar o banco:
 
 ### Liberar a porta no Firewall do Windows
 
-O Windows por padrão bloqueia conexões de entrada. Abra o **PowerShell como
-administrador** e execute:
+O próprio Bipa faz isso por você. Clique no botão **"Liberar porta N no Firewall"**
+que aparece embaixo da lista de IPs (tanto no wizard quanto em
+**Configurações → Instalação e terminal**). O Windows vai pedir aprovação de
+administrador (UAC) — aprove uma vez e a regra fica gravada.
+
+Se preferir fazer manualmente pelo PowerShell:
 
 ```powershell
-New-NetFirewallRule -DisplayName "Bipa MariaDB" `
-  -Direction Inbound -Action Allow -Protocol TCP `
-  -LocalPort 3307
+netsh advfirewall firewall add rule name="Bipa MariaDB" `
+  dir=in action=allow protocol=TCP localport=3307
 ```
 
 (Ajuste `3307` para a porta que o Bipa mostrou.)
 
-Para remover a regra depois:
+Para remover a regra depois — o Bipa tem o botão **"Remover regra"** ao lado,
+ou via PowerShell:
 
 ```powershell
-Remove-NetFirewallRule -DisplayName "Bipa MariaDB"
+netsh advfirewall firewall delete rule name="Bipa MariaDB"
 ```
 
 ## Passo 2 — Instalar cada **terminal adicional**

@@ -15,6 +15,7 @@ import {
   Plug,
   RefreshCw,
   Server,
+  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
@@ -51,6 +52,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
   const [shareOnLan, setShareOnLan] = useState(false);
   const [lanInfo, setLanInfo] = useState<{ lanIps: string[]; port: number } | null>(null);
   const [togglingShare, setTogglingShare] = useState(false);
+  const [addingFwRule, setAddingFwRule] = useState(false);
 
   const [autoInstalling, setAutoInstalling] = useState(false);
   const [autoProgress, setAutoProgress] = useState<BundledProgress>(null);
@@ -106,6 +108,19 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
       toast.error((e as Error).message);
     }
     setTogglingShare(false);
+  };
+
+  const openFirewallPort = async () => {
+    if (!lanInfo) return;
+    setAddingFwRule(true);
+    try {
+      const r = await api.addFirewallRule(lanInfo.port, 'Bipa MariaDB');
+      if (!r.ok) throw new Error(r.error ?? 'Falha');
+      toast.success(`Porta ${lanInfo.port} liberada no Firewall`);
+    } catch (e) {
+      toast.error(`Firewall: ${(e as Error).message}`);
+    }
+    setAddingFwRule(false);
   };
 
   const runDetection = async () => {
@@ -501,20 +516,27 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
           </div>
 
           {shareOnLan && lanInfo && lanInfo.lanIps.length > 0 && (
-            <div className="rounded-lg bg-black/20 p-3 space-y-2 text-xs">
-              <div className="text-muted-foreground">Use um destes endereços nos terminais adicionais:</div>
-              <div className="space-y-1 font-mono">
-                {lanInfo.lanIps.map((ip) => (
-                  <div key={ip} className="flex items-center gap-2">
-                    <span className="text-primary">{ip}</span>
-                    <span className="text-muted-foreground">:</span>
-                    <span className="text-primary">{lanInfo.port}</span>
-                  </div>
-                ))}
+            <div className="rounded-lg bg-black/20 p-3 space-y-3 text-xs">
+              <div>
+                <div className="text-muted-foreground mb-1">Use um destes endereços nos terminais adicionais:</div>
+                <div className="space-y-1 font-mono">
+                  {lanInfo.lanIps.map((ip) => (
+                    <div key={ip} className="flex items-center gap-2">
+                      <span className="text-primary">{ip}</span>
+                      <span className="text-muted-foreground">:</span>
+                      <span className="text-primary">{lanInfo.port}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="text-[11px] text-warning pt-1 border-t border-white/5 mt-2">
-                ⚠ Você também precisa abrir a porta {lanInfo.port} no <strong>Firewall do Windows</strong> desta
-                máquina. Consulte <code className="text-foreground">docs/multi-terminal.md</code>.
+              <div className="pt-2 border-t border-white/5 flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={openFirewallPort} disabled={addingFwRule}>
+                  {addingFwRule ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                  Liberar porta {lanInfo.port} no Firewall
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  Vai pedir permissão de administrador (UAC).
+                </span>
               </div>
             </div>
           )}
