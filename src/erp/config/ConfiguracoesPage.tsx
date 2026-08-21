@@ -1729,9 +1729,9 @@ function UpdatesCard() {
         <div className="mt-3 text-xs rounded-lg bg-black/20 p-3 text-muted-foreground">{msg}</div>
       )}
       <p className="text-[11px] text-muted-foreground mt-3">
-        O Bipa verifica atualizações automaticamente 10s após abrir e a cada reinício. Quando houver
-        uma nova versão, aparece um banner no canto inferior — você pode baixar em background e
-        aplicar quando quiser. Veja <code className="text-foreground">docs/updates.md</code>.
+        O Bipa verifica atualizações 5 segundos após abrir e depois a cada 15 minutos enquanto
+        estiver aberto. O download roda em segundo plano automaticamente; quando termina, um
+        aviso discreto no canto inferior confirma. Veja <code className="text-foreground">docs/updates.md</code>.
       </p>
     </div>
   );

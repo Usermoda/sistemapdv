@@ -125,10 +125,16 @@ export function initUpdater(): void {
     return { ok: true };
   });
 
-  // Check silenciosa no boot (10s de delay pra não competir com a inicialização)
-  setTimeout(() => {
-    if (app.isPackaged) {
-      autoUpdater.checkForUpdates().catch((e) => console.warn('[updater] boot check falhou:', e));
-    }
-  }, 10_000);
+  // Check silenciosa: primeira 5s após o boot, depois a cada 15 minutos
+  // enquanto o app estiver rodando. POS fica aberto o dia todo, então
+  // check periódico garante que ninguém fica "esquecido" numa versão antiga.
+  const scheduleChecks = () => {
+    if (!app.isPackaged) return;
+    const doCheck = () => {
+      autoUpdater.checkForUpdates().catch((e) => console.warn('[updater] check falhou:', e));
+    };
+    setTimeout(doCheck, 5_000);
+    setInterval(doCheck, 15 * 60 * 1000); // 15 minutos
+  };
+  scheduleChecks();
 }
