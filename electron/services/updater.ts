@@ -119,9 +119,11 @@ export function initUpdater(): void {
 
   ipcMain.handle('updater:install', () => {
     if (!app.isPackaged) return { ok: false, error: 'Somente em produção' };
-    // Fecha o app e aplica o update. `isSilent = false` mostra a tela do NSIS
-    // para o usuário acompanhar; `isForceRunAfter = true` reabre o app.
-    autoUpdater.quitAndInstall(false, true);
+    // Fecha o app e aplica o update SILENCIOSAMENTE (sem mostrar wizard do NSIS).
+    // isSilent = true → passa /S para o instalador; oneClick:false honra essa flag
+    //                   para updates, pulando as telas de "onde instalar / para quem".
+    // isForceRunAfter = true → reabre o Bipa automaticamente após aplicar.
+    autoUpdater.quitAndInstall(true, true);
     return { ok: true };
   });
 
