@@ -27,10 +27,16 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
  * Tamanhos padronizados de modal. Só use "lg" para forms multi-tab densos
  * (produto, fornecedor, checkout completo). Tudo o resto (confirmações,
  * forms simples, picks) usa o "md" padrão pra manter consistência visual.
+ *
+ * Usamos largura FIXA (w-[Xrem]) em vez de max-w porque max-w permite que
+ * o conteúdo interno "puxe" o dialog pra menos — trocar de aba mudava o
+ * tamanho do modal, o que fica ruim. Com w- fixo o modal sempre ocupa o
+ * mesmo espaço; conteúdo estreito só deixa mais espaço vazio.
+ * O max-w-[95vw] garante fallback em telas menores.
  */
 const DIALOG_SIZES = {
-  md: 'max-w-2xl',
-  lg: 'max-w-4xl',
+  md: 'w-[42rem] max-w-[95vw]',
+  lg: 'w-[56rem] max-w-[95vw]',
 } as const;
 
 type DialogSize = keyof typeof DIALOG_SIZES;
@@ -47,7 +53,7 @@ export const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-[50%] top-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 border border-white/10 bg-card p-6 shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-2xl',
+        'fixed left-[50%] top-[50%] z-50 grid translate-x-[-50%] translate-y-[-50%] gap-4 border border-white/10 bg-card p-6 shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-2xl',
         DIALOG_SIZES[size],
         className
       )}
