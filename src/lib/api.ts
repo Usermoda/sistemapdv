@@ -110,6 +110,9 @@ const invoke = <T,>(channel: string, ...args: unknown[]): Promise<T> => {
 export const api = {
   getSetupStatus: () => invoke<SetupStatus>('app:get-setup-status'),
   quit: () => invoke<void>('app:quit'),
+  getAutoStart: () => invoke<{ enabled: boolean }>('app:get-auto-start'),
+  setAutoStart: (enabled: boolean) => invoke<{ ok: boolean }>('app:set-auto-start', enabled),
+  createShortcut: () => invoke<{ ok: boolean; error?: string; path?: string }>('app:create-shortcut'),
 
   db: {
     detect: (port?: number) =>

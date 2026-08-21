@@ -3,6 +3,9 @@ import { contextBridge, ipcRenderer } from 'electron';
 type Channel =
   | 'app:get-setup-status'
   | 'app:quit'
+  | 'app:get-auto-start'
+  | 'app:set-auto-start'
+  | 'app:create-shortcut'
   | 'db:detect-mysql'
   | 'db:test-connection'
   | 'db:list-databases'

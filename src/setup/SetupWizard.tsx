@@ -4,6 +4,7 @@ import { Route, Routes, useLocation, useNavigate, Navigate } from 'react-router-
 import { AlertTriangle, Check, Database, Building2, Printer, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isElectron } from '@/lib/api';
+import { BipaMark, BipaWordmark } from '@/components/BipaLogo';
 import { WelcomeStep } from './steps/WelcomeStep';
 import { DatabaseStep } from './steps/DatabaseStep';
 import { CompanyStep } from './steps/CompanyStep';
@@ -49,11 +50,9 @@ export function SetupWizard() {
       <aside className="hidden md:flex w-80 flex-col border-r border-white/5 bg-black/20 backdrop-blur-md">
         <div className="p-8 border-b border-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/40">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
+            <BipaMark size={40} />
             <div>
-              <h1 className="text-lg font-bold">Sistema PDV</h1>
+              <BipaWordmark className="text-lg" />
               <p className="text-xs text-muted-foreground">Assistente de Instalação</p>
             </div>
           </div>

@@ -1,7 +1,7 @@
 {
   "name": "sistema-pdv",
   "version": "0.1.0",
-  "description": "Sistema de PDV moderno",
+  "description": "Bipa — Sistema de PDV moderno",
   "main": "dist-electron/main.cjs",
   "author": "Grupo Maxcenter",
   "license": "UNLICENSED",
@@ -22,7 +22,7 @@
   },
   "build": {
     "appId": "com.grupomaxcenter.sistemapdv",
-    "productName": "Sistema PDV",
+    "productName": "Bipa",
     "copyright": "Copyright © 2026 Grupo Maxcenter",
     "directories": {
       "output": "release",
@@ -32,6 +32,7 @@
       "dist/**",
       "dist-electron/**",
       "db/**",
+      "build/icon.*",
       "package.json"
     ],
     "asarUnpack": [
@@ -40,6 +41,7 @@
       "**/node_modules/bindings/**"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -57,7 +59,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Sistema PDV",
+      "shortcutName": "Bipa",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
       "installerLanguages": ["pt_BR"],
       "language": "1046"
     }

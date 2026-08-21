@@ -23,8 +23,15 @@ const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
+  // Ícone: em dev, carrega direto do repo; em produção, o electron-builder
+  // já embute build/icon.ico e o Windows usa esse.
+  const iconPath = VITE_DEV_SERVER_URL
+    ? path.join(process.env.APP_ROOT ?? '', 'build', 'icon.png')
+    : path.join(process.env.APP_ROOT ?? '', 'build', 'icon.png');
+
   mainWindow = new BrowserWindow({
-    title: 'Sistema PDV',
+    title: 'Bipa — Sistema PDV',
+    icon: iconPath,
     width: 1440,
     height: 900,
     minWidth: 1024,
@@ -40,7 +47,10 @@ function createWindow() {
     },
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.maximize();
+    mainWindow?.show();
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http')) shell.openExternal(url);
@@ -53,6 +63,11 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(RENDERER_DIST, 'index.html'));
   }
+}
+
+// Windows taskbar grouping / icon: precisa ser setado ANTES de criar a janela.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.grupomaxcenter.sistemapdv');
 }
 
 app.whenReady().then(async () => {
@@ -89,6 +104,46 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle('app:quit', () => app.quit());
+
+  // Auto-start (registra o app para iniciar com o Windows/macOS).
+  ipcMain.handle('app:get-auto-start', () => {
+    const s = app.getLoginItemSettings();
+    return { enabled: s.openAtLogin };
+  });
+
+  ipcMain.handle('app:set-auto-start', (_e, enabled: boolean) => {
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      // Em produção, aponta para o próprio executável; em dev, aponta para o Electron+entry (só útil pra teste).
+      path: process.execPath,
+      args: [],
+    });
+    getConfig().set('app.autoStart', enabled);
+    return { ok: true };
+  });
+
+  // Cria atalho no menu iniciar (Windows) — permite ao usuário fixar na barra manualmente.
+  ipcMain.handle('app:create-shortcut', () => {
+    if (process.platform !== 'win32') return { ok: false, error: 'Somente Windows' };
+    try {
+      const target = process.execPath;
+      // Nome do atalho e caminho do menu iniciar
+      const startMenu = path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs');
+      const shortcut = path.join(startMenu, 'Bipa PDV.lnk');
+      const ok = shell.writeShortcutLink(shortcut, 'create', {
+        target,
+        args: '',
+        description: 'Bipa — Sistema PDV',
+        icon: path.join(process.env.APP_ROOT ?? '', 'build', 'icon.ico'),
+        iconIndex: 0,
+        appUserModelId: 'com.grupomaxcenter.sistemapdv',
+      });
+      if (!ok) return { ok: false, error: 'Falha ao criar atalho' };
+      return { ok: true, path: shortcut };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  });
 
   createWindow();
 });

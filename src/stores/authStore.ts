@@ -53,6 +53,16 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   logout: async () => {
     await api.auth.logout();
+    // Keep the remembered credentials (per "Manter sessão iniciada").
+    // But flag "skipAutoLogin" so the login screen doesn't immediately log
+    // the user back in — they see the pre-filled form and confirm manually.
+    // The flag lives in sessionStorage, so a full app restart clears it and
+    // auto-login resumes.
+    try {
+      sessionStorage.setItem('pdv.skipAutoLogin', '1');
+    } catch {
+      // no-op
+    }
     set({ session: null, permissions: null });
   },
 

@@ -19,7 +19,7 @@ export function WelcomeStep({ onNext }: { onNext: () => void }) {
           className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 mb-6"
         >
           <Sparkles className="w-3.5 h-3.5 text-primary" />
-          <span className="text-xs font-medium text-primary">Bem-vindo ao Sistema PDV</span>
+          <span className="text-xs font-medium text-primary">Bem-vindo ao Bipa</span>
         </motion.div>
         <h1 className="text-4xl lg:text-5xl font-bold tracking-tight mb-4">
           Vamos preparar seu <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">sistema de vendas</span>

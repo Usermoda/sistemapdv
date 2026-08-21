@@ -1,4 +1,4 @@
-# Sistema PDV
+# Bipa — Sistema PDV
 
 PDV/ERP desktop moderno para varejo — venda no caixa, gestão de produtos,
 promoções por quantidade, controle de estoque, financeiro, emissão de NFCe,
@@ -54,6 +54,19 @@ npm run build     # gera renderer + main + instalador (NSIS) + ZIP via electron-
 ```
 
 Artefatos ficam em `release/`.
+
+### Ícones
+
+O ícone da marca (`build/icon.png`, `build/icon.ico`, `public/bipa-icon.png`) é
+gerado a partir do design canônico via PowerShell:
+
+```powershell
+powershell -File scripts/generate-icons.ps1
+```
+
+O script usa apenas `System.Drawing` (nativo do Windows) — sem dependência de
+ImageMagick ou Inkscape. Regere sempre que alterar o design em
+`src/components/BipaLogo.tsx` ou `public/bipa-icon.svg`.
 
 > ⚠️ O build local do instalador **falha em máquinas com Smart App Control (Windows 11)
 > ligado**. O build oficial roda no **GitHub Actions** e publica no **GitHub Releases** a

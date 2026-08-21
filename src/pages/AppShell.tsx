@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, Users, Warehouse, Wallet, FileText, Settings, Sparkles, LogOut, Truck, UserCircle2, FileBarChart, Moon, Sun, Tag, FileInput, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Users, Warehouse, Wallet, FileText, Settings, LogOut, Truck, UserCircle2, FileBarChart, Moon, Sun, Tag, FileInput, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { BipaMark, BipaWordmark } from '@/components/BipaLogo';
 import { useAuth } from '@/stores/authStore';
 import { useTheme } from '@/stores/themeStore';
 import type { PermissionKey } from '@/lib/permissions';
@@ -49,11 +50,9 @@ export function AppShell() {
       <aside className="w-64 flex-shrink-0 border-r border-white/5 bg-black/20 flex flex-col">
         <div className="p-5 border-b border-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/40">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
+            <BipaMark size={36} />
             <div>
-              <div className="font-bold">Sistema PDV</div>
+              <BipaWordmark className="text-xl" />
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Painel ERP</div>
             </div>
           </div>

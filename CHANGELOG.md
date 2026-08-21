@@ -9,11 +9,40 @@ e o projeto adota [Versionamento Semântico (SemVer)](https://semver.org/lang/pt
 ## [Não lançado]
 
 ### Adicionado
+- **Rebrand: Sistema PDV → Bipa.** Novo nome do produto, logo (combo mark: 4 barras
+  de scan + "beep" ping em gradient azul→roxo) e wordmark aplicado no login,
+  sidebar do ERP, wizard de setup e cabeçalho do cupom.
+- **Componente `<BipaLogo>`** com variantes `mark` (só ícone), `word` (só wordmark)
+  e `combo` (default). Reusável em toda a UI.
+- **Geração de ícone**: script `scripts/generate-icons.ps1` (PowerShell + System.Drawing,
+  sem dependências externas) que gera `build/icon.png` (256×256) e
+  `build/icon.ico` (multi-frame 16/32/48/64/128/256) a partir do design canônico.
+  Também escreve `public/bipa-icon.png` para uso web/favicon.
+- **Janela sempre maximizada** no boot (`mainWindow.maximize()` antes do `show()`).
+- **Auto-start com o Windows** — nova opção na etapa final do setup, com IPC
+  `app:get-auto-start` / `app:set-auto-start` usando `app.setLoginItemSettings()`
+  do Electron (grava no registry `HKCU\...\Run`).
+- **Criar atalho no Menu Iniciar** — botão "Fixar na barra de tarefas" no setup;
+  o app cria o `.lnk` via `shell.writeShortcutLink()` e instrui o usuário a
+  fixar manualmente pelo botão direito (Windows 10/11 não permite pin
+  programático).
+- **AppUserModelId** setado (`app.setAppUserModelId('com.grupomaxcenter.sistemapdv')`)
+  para o Windows agrupar corretamente na taskbar e mostrar o ícone/nome certos.
+- Tela de **Login** redesenhada — imagem full-screen do PDV como fundo, card
+  glassmorphism à direita com campos, toggle mostrar/ocultar senha e "Manter
+  sessão iniciada" com persistência real de credenciais (auto-login em fresh
+  start; após logout explícito, form aparece pré-preenchido esperando Enter).
 - Script de empacotamento local `scripts/package.ps1` (`npm run package:win`), que aplica
   os ajustes de ambiente Windows (PATH, `ELECTRON_RUN_AS_NODE`, Modo Desenvolvedor,
   Smart App Control) antes de gerar o instalador.
 - Documentação do processo de empacotamento e das pegadinhas de ambiente em
   [`docs/build-release.md`](docs/build-release.md).
+
+### Corrigido
+- `productName` no top-level do `package.json` mudava `app.getName()` e movia o
+  `userData` do Electron para `%APPDATA%\Bipa\` — quebrando instalações existentes
+  em `%APPDATA%\sistema-pdv\`. Agora fica só em `build.productName`, que só afeta
+  o instalador/executável final.
 
 ## [0.1.0] - 2026-08-20
 

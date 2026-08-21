@@ -26,6 +26,7 @@ type ConfigSchema = {
   'scale.protocol'?: 'toledo' | 'filizola' | 'urano' | 'generic';
   'setup.complete'?: boolean;
   'terminal.id'?: string;
+  'app.autoStart'?: boolean;
 
   // Backup
   'backup.enabled'?: boolean;

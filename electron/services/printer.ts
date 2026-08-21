@@ -20,7 +20,7 @@ function buildPrinter(cfg: PrinterConfig): ThermalPrinter {
   });
 }
 
-export async function testPrint(cfg: PrinterConfig, companyName = 'Sistema PDV'): Promise<{ ok: boolean; error?: string }> {
+export async function testPrint(cfg: PrinterConfig, companyName = 'Bipa PDV'): Promise<{ ok: boolean; error?: string }> {
   try {
     const printer = buildPrinter(cfg);
     const isConnected = await printer.isPrinterConnected();
@@ -39,7 +39,7 @@ export async function testPrint(cfg: PrinterConfig, companyName = 'Sistema PDV')
     printer.println(`Data: ${new Date().toLocaleString('pt-BR')}`);
     printer.drawLine();
     printer.alignCenter();
-    printer.println('Sistema PDV');
+    printer.println('Bipa PDV');
     printer.cut();
     await printer.execute();
     return { ok: true };
