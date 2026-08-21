@@ -1,17 +1,30 @@
-; NSIS custom include for Bipa
-; - Adiciona um Section opcional "Iniciar Bipa com o Windows" que grava HKCU Run
-;   (aparece na tela "Escolha os componentes" do instalador)
-; - customUnInstall limpa o registry entry ao desinstalar
+; NSIS custom include para o Bipa.
+; Adiciona um checkbox opcional na página final do INSTALADOR:
+;    [ ] Iniciar o Bipa automaticamente com o Windows
+; Marcando, escreve HKCU\Software\Microsoft\Windows\CurrentVersion\Run.
+;
+; Nota: o electron-builder roda o NSIS duas vezes (uma para gerar o uninstaller,
+; outra para o installer). Precisamos gatear com !ifndef BUILD_UNINSTALLER
+; para os defines/Function não vazarem no uninstaller (que usaria com "un.").
+
+!ifndef BUILD_UNINSTALLER
+  !define MUI_FINISHPAGE_SHOWREADME
+  !define MUI_FINISHPAGE_SHOWREADME_TEXT "Iniciar o Bipa automaticamente com o Windows"
+  !define MUI_FINISHPAGE_SHOWREADME_FUNCTION "EnableBipaAutoStart"
+  !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
+
+  Function EnableBipaAutoStart
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Bipa" '"$INSTDIR\Bipa.exe"'
+  FunctionEnd
+!endif
+
+!macro customInit
+!macroend
 
 !macro customInstall
-  ; nothing extra — electron-builder já cuida do resto
 !macroend
 
 !macro customUnInstall
+  ; Limpa o auto-start ao desinstalar
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Bipa"
 !macroend
-
-; Seção opcional (/o = desmarcada por padrão) para iniciar com o Windows.
-Section /o "Iniciar Bipa com o Windows" SEC_AUTOSTART
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Bipa" '"$INSTDIR\Bipa.exe"'
-SectionEnd
