@@ -9,6 +9,17 @@ e o projeto adota [Versionamento Semântico (SemVer)](https://semver.org/lang/pt
 ## [Não lançado]
 
 ### Adicionado
+- **Wizard: novas etapas "Pagamentos" e "Usuários"** entre Impressora e Concluir.
+  - Pagamentos: ativa/desativa/cria formas de pagamento, com presets (PIX, cartões,
+    voucher, fiado, cheque) em 1 clique. Formas protegidas (Dinheiro/Cartão) já vêm ativas.
+  - Usuários: gera os perfis padrão (CAIXA/GERENTE/ESTOQUISTA/VENDEDOR) via um botão
+    e permite criar usuários adicionais direto no setup.
+- **Instalador NSIS com opções**:
+  - Componente opcional "Iniciar Bipa com o Windows" — grava `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+  - `createDesktopShortcut: "always"` — checkbox visível na tela de componentes do
+    NSIS para o usuário desmarcar se não quiser atalho na área de trabalho.
+  - `build/installer.nsh` — include custom com o Section do auto-start e a limpeza
+    no uninstall.
 - **Rebrand: Sistema PDV → Bipa.** Novo nome do produto, logo (combo mark: 4 barras
   de scan + "beep" ping em gradient azul→roxo) e wordmark aplicado no login,
   sidebar do ERP, wizard de setup e cabeçalho do cupom.

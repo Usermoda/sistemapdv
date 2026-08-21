@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Route, Routes, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { AlertTriangle, Check, Database, Building2, Printer, Sparkles } from 'lucide-react';
+import { AlertTriangle, Check, Database, Building2, Printer, Sparkles, Users, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isElectron } from '@/lib/api';
 import { BipaMark, BipaWordmark } from '@/components/BipaLogo';
@@ -9,6 +9,8 @@ import { WelcomeStep } from './steps/WelcomeStep';
 import { DatabaseStep } from './steps/DatabaseStep';
 import { CompanyStep } from './steps/CompanyStep';
 import { PrinterStep } from './steps/PrinterStep';
+import { PaymentMethodsStep } from './steps/PaymentMethodsStep';
+import { UsersStep } from './steps/UsersStep';
 import { FinishStep } from './steps/FinishStep';
 
 const steps = [
@@ -16,6 +18,8 @@ const steps = [
   { path: 'database', label: 'Banco de Dados', icon: Database },
   { path: 'company', label: 'Empresa', icon: Building2 },
   { path: 'printer', label: 'Impressora', icon: Printer },
+  { path: 'payments', label: 'Pagamentos', icon: Wallet },
+  { path: 'users', label: 'Usuários', icon: Users },
   { path: 'finish', label: 'Concluir', icon: Check },
 ];
 
@@ -118,7 +122,9 @@ export function SetupWizard() {
                 <Route path="welcome" element={<WelcomeStep onNext={() => navigate('/setup/database')} />} />
                 <Route path="database" element={<DatabaseStep onNext={() => navigate('/setup/company')} onBack={() => navigate('/setup/welcome')} />} />
                 <Route path="company" element={<CompanyStep onNext={() => navigate('/setup/printer')} onBack={() => navigate('/setup/database')} />} />
-                <Route path="printer" element={<PrinterStep onNext={() => navigate('/setup/finish')} onBack={() => navigate('/setup/company')} />} />
+                <Route path="printer" element={<PrinterStep onNext={() => navigate('/setup/payments')} onBack={() => navigate('/setup/company')} />} />
+                <Route path="payments" element={<PaymentMethodsStep onNext={() => navigate('/setup/users')} onBack={() => navigate('/setup/printer')} />} />
+                <Route path="users" element={<UsersStep onNext={() => navigate('/setup/finish')} onBack={() => navigate('/setup/payments')} />} />
                 <Route path="finish" element={<FinishStep />} />
                 <Route path="*" element={<Navigate to="/setup/welcome" replace />} />
               </Routes>
