@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Printer, Scale, Wallet, FileCheck2, Users2, Plus, KeyRound, Loader2, Power, PowerOff, HardDrive, Download, Trash2, FolderOpen, RotateCcw, CreditCard, Lock, Check, X, MousePointer2, ShieldCheck, Server, Network, ShieldAlert } from 'lucide-react';
+import { Building2, Printer, Scale, Wallet, FileCheck2, Users2, Plus, KeyRound, Loader2, Power, PowerOff, HardDrive, Download, Trash2, FolderOpen, RotateCcw, CreditCard, Lock, Check, X, MousePointer2, ShieldCheck, Server, Network, ShieldAlert, RefreshCw, Package } from 'lucide-react';
 import { usePrefs } from '@/stores/prefsStore';
 import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -1637,6 +1637,9 @@ function SistemaPanel({ onGoEmpresa }: { onGoEmpresa: () => void }) {
         </div>
       )}
 
+      {/* Atualizações OTA */}
+      <UpdatesCard />
+
       {/* Dialog de confirmação — refazer wizard */}
       <Dialog open={confirmReset} onOpenChange={setConfirmReset}>
         <DialogContent className="max-w-md">
@@ -1671,6 +1674,65 @@ function SistemaPanel({ onGoEmpresa }: { onGoEmpresa: () => void }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function UpdatesCard() {
+  const [version, setVersion] = useState<string>('...');
+  const [isPackaged, setIsPackaged] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    void api.updater.getState().then((r) => {
+      setVersion(r.currentVersion);
+      setIsPackaged(r.isPackaged);
+    });
+  }, []);
+
+  const check = async () => {
+    setChecking(true);
+    setMsg(null);
+    const r = await api.updater.check();
+    if (!r.ok) {
+      setMsg(r.error ?? 'Falha ao verificar');
+    } else if (r.updateInfo && r.updateInfo.version !== version) {
+      setMsg(`Versão ${r.updateInfo.version} disponível — veja o banner no rodapé.`);
+    } else {
+      setMsg('Você já está na versão mais recente.');
+    }
+    setChecking(false);
+  };
+
+  return (
+    <div className="rounded-xl border border-white/5 bg-card/50 p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Package className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Atualizações do sistema</h3>
+            <p className="text-xs text-muted-foreground">
+              Versão instalada: <code className="text-foreground">v{version}</code>
+              {!isPackaged && <span className="ml-2 text-warning">(modo desenvolvimento — updates só rodam no app instalado)</span>}
+            </p>
+          </div>
+        </div>
+        <Button variant="outline" size="sm" onClick={check} disabled={checking || !isPackaged}>
+          {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          Verificar
+        </Button>
+      </div>
+      {msg && (
+        <div className="mt-3 text-xs rounded-lg bg-black/20 p-3 text-muted-foreground">{msg}</div>
+      )}
+      <p className="text-[11px] text-muted-foreground mt-3">
+        O Bipa verifica atualizações automaticamente 10s após abrir e a cada reinício. Quando houver
+        uma nova versão, aparece um banner no canto inferior — você pode baixar em background e
+        aplicar quando quiser. Veja <code className="text-foreground">docs/updates.md</code>.
+      </p>
     </div>
   );
 }

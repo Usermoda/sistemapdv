@@ -1,6 +1,10 @@
 # Build & Release
 
-Como gerar o instalador do Sistema PDV e publicar uma versão.
+Como gerar o instalador do Bipa e publicar uma versão.
+
+> **Também confira** [`docs/updates.md`](updates.md) — o passo a passo diário
+> de release (`npm version` + `git push --tags`) e como as atualizações
+> chegam nos clientes via `electron-updater`.
 
 ## Visão geral
 
@@ -9,8 +13,8 @@ O empacotamento é feito com **electron-builder**, configurado no campo `build` 
 
 | Artefato | Arquivo | Uso |
 |---|---|---|
-| Instalador NSIS | `Sistema PDV Setup X.Y.Z.exe` | Instalação assistida (atalhos, escolha de pasta) |
-| ZIP portátil | `Sistema PDV-X.Y.Z-win.zip` | Extrair e rodar `Sistema PDV.exe` (sem instalar) |
+| Instalador NSIS | `Bipa Setup X.Y.Z.exe` | Instalação assistida (atalhos, escolha de pasta) |
+| ZIP portátil | `Bipa-X.Y.Z-win.zip` | Extrair e rodar `Bipa.exe` (sem instalar) |
 
 O destino de saída é a pasta `release/` (ignorada pelo git).
 

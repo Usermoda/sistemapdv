@@ -1,3 +1,12 @@
+export type UpdaterState =
+  | { phase: 'idle' }
+  | { phase: 'checking' }
+  | { phase: 'available'; info: { version: string; releaseNotes?: string | null; releaseDate?: string } }
+  | { phase: 'not-available'; currentVersion: string; latestVersion: string }
+  | { phase: 'downloading'; percent: number; bytesPerSecond: number; transferred: number; total: number }
+  | { phase: 'downloaded'; info: { version: string; releaseNotes?: string | null; releaseDate?: string } }
+  | { phase: 'error'; message: string };
+
 export type SetupStatus = {
   dbConfigured: boolean;
   companyConfigured: boolean;
@@ -119,6 +128,23 @@ export const api = {
     invoke<{ ok: boolean; error?: string }>('system:add-firewall-rule', { port, name }),
   removeFirewallRule: (name?: string) =>
     invoke<{ ok: boolean; error?: string }>('system:remove-firewall-rule', { name }),
+
+  updater: {
+    getState: () =>
+      invoke<{
+        state: UpdaterState;
+        currentVersion: string;
+        isPackaged: boolean;
+      }>('updater:get-state'),
+    check: () =>
+      invoke<{ ok: boolean; error?: string; updateInfo?: { version: string; releaseNotes?: string | null; releaseDate?: string } | null }>('updater:check'),
+    download: () => invoke<{ ok: boolean; error?: string }>('updater:download'),
+    install: () => invoke<{ ok: boolean; error?: string }>('updater:install'),
+    onState: (cb: (state: UpdaterState) => void) => {
+      if (!window.api) return () => undefined;
+      return window.api.on('updater:state', (state) => cb(state as UpdaterState));
+    },
+  },
 
   db: {
     detect: (port?: number) =>

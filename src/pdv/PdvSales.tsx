@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Barcode, Scale, DollarSign, Search, Loader2, Clock, LockKeyhole, ArrowUpDown, History, LogOut, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { UpdateBanner } from '@/components/UpdateBanner';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { usePdv } from '@/stores/pdvStore';
@@ -563,6 +564,7 @@ export function PdvSales() {
       </main>
 
       <CartSidebar onCheckout={() => setCheckoutOpen(true)} onSelectClient={() => setClientOpen(true)} />
+      <UpdateBanner />
     </div>
   );
 }

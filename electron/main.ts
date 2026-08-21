@@ -15,6 +15,7 @@ import { startFiscalRetryScheduler } from './services/fiscal/emitter';
 import { getConfig } from './services/config';
 import { autoStartIfConfigured, stopBundledMysql } from './services/mysqlInstaller';
 import { runMigrations } from './services/migrations';
+import { initUpdater } from './services/updater';
 
 process.env.APP_ROOT = path.join(__dirname, '..');
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
@@ -92,6 +93,9 @@ app.whenReady().then(async () => {
   startFiscalRetryScheduler();
 
   void autoStartIfConfigured();
+
+  // Registra o autoUpdater: check silencioso na inicialização + IPCs manuais.
+  initUpdater();
 
   ipcMain.handle('app:get-setup-status', async () => {
     const cfg = getConfig();

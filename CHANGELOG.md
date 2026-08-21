@@ -9,6 +9,21 @@ e o projeto adota [Versionamento Semântico (SemVer)](https://semver.org/lang/pt
 ## [Não lançado]
 
 ### Adicionado
+- **Atualizações OTA (over-the-air)** via `electron-updater` + GitHub Releases.
+  - `electron/services/updater.ts` centraliza o ciclo: check automático 10s
+    após o boot, download em background sob demanda, aplicação na saída
+    ou via botão. Estados são broadcast pelo canal IPC `updater:state`.
+  - Novo componente `<UpdateBanner>` no canto inferior direito do AppShell
+    e do PDV — mostra "nova versão disponível", barra de progresso do
+    download e "reiniciar e aplicar" quando pronto.
+  - **Configurações → Instalação e terminal** ganhou o card "Atualizações
+    do sistema" com versão instalada e botão "Verificar" manual.
+  - `build.publish` no package.json aponta para o repo `Usermoda/sistemapdv`.
+  - Migrations idempotentes já existentes garantem que o schema evolua no
+    boot sem intervenção. Config em `userData/` é preservada entre updates.
+- **Documentação de release em [`docs/updates.md`](docs/updates.md)** — padrão
+  SemVer, fluxo `npm version` + `git push --tags`, o que o cliente vê,
+  comportamento em multi-terminal, rollback e assinatura de código.
 - **Multi-terminal**: seletor "Servidor principal" / "Terminal adicional" no
   primeiro passo de banco de dados do wizard.
   - No modo **terminal**, o wizard só coleta host/porta/user/senha do servidor

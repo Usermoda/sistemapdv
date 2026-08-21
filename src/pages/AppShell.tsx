@@ -4,6 +4,7 @@ import { LayoutDashboard, Package, ShoppingCart, Users, Warehouse, Wallet, FileT
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { BipaMark, BipaWordmark } from '@/components/BipaLogo';
+import { UpdateBanner } from '@/components/UpdateBanner';
 import { useAuth } from '@/stores/authStore';
 import { useTheme } from '@/stores/themeStore';
 import type { PermissionKey } from '@/lib/permissions';
@@ -97,6 +98,7 @@ export function AppShell() {
       <main className="flex-1 overflow-auto">
         <Outlet />
       </main>
+      <UpdateBanner />
     </div>
   );
 }

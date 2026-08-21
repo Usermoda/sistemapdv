@@ -99,6 +99,7 @@ docs/                  # documentação técnica (start aqui)
 - [Especificação funcional](docs/spec.md) — o que o sistema faz (visão de negócio)
 - [Arquitetura](docs/arquitetura.md) — como o Electron, o IPC e o banco se conversam
 - [Multi-terminal (servidor + caixas)](docs/multi-terminal.md) — vários PCs no mesmo banco
+- [Atualizações OTA](docs/updates.md) — versionamento SemVer + release via `npm version` + tag
 - [Banco de dados & migrações](docs/database.md) — tabelas principais e evolução do schema
 - [PDV / caixa](docs/pdv.md) — fluxo de venda, atalhos, multiplicador, promoções
 - [Preços e promoções](docs/precos-promocoes.md) — edição em massa e promoção por quantidade mínima
