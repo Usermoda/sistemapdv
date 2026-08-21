@@ -94,9 +94,17 @@ export function registerDbHandlers(): void {
     const bundled = !!cfg.get('db.bundled');
     if (bundled && enabled) {
       try {
-        // GRANT antes de restart — precisa de conexão ativa
+        // GRANT antes de restart — precisa de conexão ativa.
+        // Não usa CREATE USER IF NOT EXISTS (MariaDB < 10.1.3 não suporta).
+        // Faz CREATE e engole o erro caso o usuário já exista.
         const pool = await getPool();
-        await pool.query("CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY ''");
+        try {
+          await pool.query("CREATE USER 'root'@'%' IDENTIFIED BY ''");
+        } catch (e) {
+          const msg = (e as Error).message ?? '';
+          // 1396 = ER_CANNOT_USER (usuário já existe / operação já feita)
+          if (!/1396|already exists|Operation CREATE USER failed/i.test(msg)) throw e;
+        }
         await pool.query("GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION");
         await pool.query('FLUSH PRIVILEGES');
         await closePool();
