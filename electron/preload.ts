@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 type Channel =
   | 'app:get-setup-status'
+  | 'app:set-setup-mode'
   | 'app:quit'
   | 'app:get-auto-start'
   | 'app:set-auto-start'
@@ -13,6 +14,10 @@ type Channel =
   | 'db:install-schema'
   | 'db:query'
   | 'db:save-config'
+  | 'db:install-bundled'
+  | 'db:start-bundled'
+  | 'db:set-lan-sharing'
+  | 'db:get-lan-info'
   | 'setup:save-company'
   | 'setup:get-company'
   | 'setup:complete'

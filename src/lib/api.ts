@@ -3,6 +3,7 @@ export type SetupStatus = {
   companyConfigured: boolean;
   printerConfigured: boolean;
   setupComplete: boolean;
+  mode: 'server' | 'terminal';
 };
 
 export type NFeItem = {
@@ -109,6 +110,7 @@ const invoke = <T,>(channel: string, ...args: unknown[]): Promise<T> => {
 
 export const api = {
   getSetupStatus: () => invoke<SetupStatus>('app:get-setup-status'),
+  setSetupMode: (mode: 'server' | 'terminal') => invoke<{ ok: boolean }>('app:set-setup-mode', mode),
   quit: () => invoke<void>('app:quit'),
   getAutoStart: () => invoke<{ enabled: boolean }>('app:get-auto-start'),
   setAutoStart: (enabled: boolean) => invoke<{ ok: boolean }>('app:set-auto-start', enabled),
@@ -145,6 +147,10 @@ export const api = {
       return window.api.on('db:install-progress', (data) => cb(data as { msg: string; pct: number }));
     },
     query: <T,>(sql: string, params?: unknown[]) => invoke<T>('db:query', sql, params),
+    setLanSharing: (enabled: boolean) =>
+      invoke<{ ok: boolean; enabled?: boolean; port?: number; lanIps?: string[]; error?: string }>('db:set-lan-sharing', enabled),
+    getLanInfo: () =>
+      invoke<{ shareOnLan: boolean; bundled: boolean; port: number; lanIps: string[] }>('db:get-lan-info'),
   },
 
   setup: {

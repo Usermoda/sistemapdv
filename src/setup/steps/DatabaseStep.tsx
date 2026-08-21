@@ -8,11 +8,16 @@ import {
   Database,
   Download,
   ExternalLink,
+  Info,
+  Laptop,
   Loader2,
+  Network,
+  Plug,
   RefreshCw,
   Server,
   Sparkles,
 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,6 +38,7 @@ type Detection = {
 type BundledProgress = { phase: 'download' | 'extract' | 'init' | 'start'; msg: string; pct: number } | null;
 
 export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
+  const [mode, setMode] = useState<'server' | 'terminal'>('server');
   const [detection, setDetection] = useState<Detection | null>(null);
   const [detecting, setDetecting] = useState(true);
   const [cfg, setCfg] = useState<ConnectionConfig>({ host: '127.0.0.1', port: 3306, user: 'root', password: '' });
@@ -42,6 +48,9 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState<{ msg: string; pct: number } | null>(null);
   const [installed, setInstalled] = useState(false);
+  const [shareOnLan, setShareOnLan] = useState(false);
+  const [lanInfo, setLanInfo] = useState<{ lanIps: string[]; port: number } | null>(null);
+  const [togglingShare, setTogglingShare] = useState(false);
 
   const [autoInstalling, setAutoInstalling] = useState(false);
   const [autoProgress, setAutoProgress] = useState<BundledProgress>(null);
@@ -50,11 +59,54 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
     void runDetection();
     const offSchema = api.db.onInstallProgress((p) => setProgress(p));
     const offBundled = api.db.onInstallBundledProgress((u) => setAutoProgress(u));
+    void api.db.getLanInfo().then((r) => {
+      setShareOnLan(r.shareOnLan);
+      setLanInfo({ lanIps: r.lanIps, port: r.port });
+    });
     return () => {
       offSchema();
       offBundled();
     };
   }, []);
+
+  const applyMode = async (m: 'server' | 'terminal') => {
+    setMode(m);
+    await api.setSetupMode(m);
+    // Se muda para terminal, reseta config para host vazio para o usuário preencher o IP do servidor.
+    if (m === 'terminal') {
+      setCfg({ host: '', port: 3306, user: 'root', password: '' });
+      setTestResult(null);
+      setInstalled(false);
+    }
+  };
+
+  const handleConnectOnly = async () => {
+    setInstalling(true);
+    try {
+      const test = await api.db.test(cfg);
+      if (!test.ok) throw new Error(test.error ?? 'Falha ao conectar');
+      await api.db.saveConfig({ ...cfg, database: dbName });
+      setInstalled(true);
+      toast.success('Terminal conectado ao servidor!');
+    } catch (e) {
+      toast.error(`Erro: ${(e as Error).message}`);
+    }
+    setInstalling(false);
+  };
+
+  const handleToggleShare = async (enabled: boolean) => {
+    setTogglingShare(true);
+    try {
+      const r = await api.db.setLanSharing(enabled);
+      if (!r.ok) throw new Error(r.error ?? 'Falha');
+      setShareOnLan(!!r.enabled);
+      if (r.lanIps) setLanInfo({ lanIps: r.lanIps, port: r.port ?? 3306 });
+      toast.success(enabled ? 'Servidor liberado na rede local' : 'Compartilhamento LAN desativado');
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+    setTogglingShare(false);
+  };
 
   const runDetection = async () => {
     setDetecting(true);
@@ -175,11 +227,49 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Banco de Dados MySQL</h1>
-        <p className="text-muted-foreground">Vamos detectar o servidor MySQL, criar o banco e instalar toda a estrutura do sistema.</p>
+        <h1 className="text-3xl font-bold tracking-tight mb-2">Banco de Dados</h1>
+        <p className="text-muted-foreground">
+          {mode === 'server'
+            ? 'Vamos detectar o MySQL, criar o banco e instalar toda a estrutura.'
+            : 'Informe o endereço do servidor Bipa principal na sua rede.'}
+        </p>
       </div>
 
-      <motion.div
+      {/* Mode selector */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => applyMode('server')}
+          className={`p-5 rounded-xl border-2 transition text-left ${
+            mode === 'server' ? 'border-primary bg-primary/10' : 'border-white/5 hover:border-white/20'
+          }`}
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <Server className={`w-5 h-5 ${mode === 'server' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <div className="text-sm font-semibold">Servidor principal</div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Primeira instalação. Cria o banco local e (opcional) libera para outros terminais.
+          </div>
+        </button>
+        <button
+          type="button"
+          onClick={() => applyMode('terminal')}
+          className={`p-5 rounded-xl border-2 transition text-left ${
+            mode === 'terminal' ? 'border-primary bg-primary/10' : 'border-white/5 hover:border-white/20'
+          }`}
+        >
+          <div className="flex items-center gap-3 mb-2">
+            <Laptop className={`w-5 h-5 ${mode === 'terminal' ? 'text-primary' : 'text-muted-foreground'}`} />
+            <div className="text-sm font-semibold">Terminal adicional</div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Conectar a um servidor Bipa que já está rodando em outra máquina na rede.
+          </div>
+        </button>
+      </div>
+
+      {mode === 'server' && <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         className="rounded-xl border border-white/5 bg-card/50 p-5"
@@ -252,9 +342,9 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
             )}
           </div>
         )}
-      </motion.div>
+      </motion.div>}
 
-      {showAutoInstall && (
+      {mode === 'server' && showAutoInstall && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -322,18 +412,31 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
       <div className="rounded-xl border border-white/5 bg-card/50 p-5 space-y-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Database className="w-5 h-5 text-primary" />
+            {mode === 'terminal' ? <Plug className="w-5 h-5 text-primary" /> : <Database className="w-5 h-5 text-primary" />}
           </div>
           <div>
-            <h3 className="font-semibold">Conexão</h3>
-            <p className="text-xs text-muted-foreground">Credenciais do servidor MySQL</p>
+            <h3 className="font-semibold">{mode === 'terminal' ? 'Conectar ao servidor' : 'Conexão'}</h3>
+            <p className="text-xs text-muted-foreground">
+              {mode === 'terminal' ? 'IP ou nome da máquina onde o Bipa está instalado' : 'Credenciais do servidor MySQL'}
+            </p>
           </div>
         </div>
 
+        {mode === 'terminal' && (
+          <div className="flex gap-2 rounded-lg bg-primary/5 border border-primary/20 p-3 text-xs">
+            <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
+            <div className="text-muted-foreground">
+              Antes de continuar, verifique se na máquina servidor você <strong>ativou o compartilhamento LAN</strong>
+              (aba deste passo no servidor) e liberou a porta <strong>3306/3307</strong> no Firewall do Windows.
+              Veja o guia <code className="text-foreground">docs/multi-terminal.md</code>.
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label>Host</Label>
-            <Input value={cfg.host} onChange={(e) => setCfg({ ...cfg, host: e.target.value })} placeholder="127.0.0.1" />
+            <Label>Host {mode === 'terminal' && '(IP do servidor)'}</Label>
+            <Input value={cfg.host} onChange={(e) => setCfg({ ...cfg, host: e.target.value })} placeholder={mode === 'terminal' ? '192.168.0.10' : '127.0.0.1'} />
           </div>
           <div className="space-y-1.5">
             <Label>Porta</Label>
@@ -368,7 +471,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
         </div>
       </div>
 
-      {(installing || installed) && (
+      {mode === 'server' && (installing || installed) && (
         <div className="rounded-xl border border-white/5 bg-card/50 p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">{installed ? 'Estrutura instalada' : 'Instalando estrutura...'}</h3>
@@ -379,16 +482,62 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
         </div>
       )}
 
+      {/* LAN sharing — visível quando servidor com banco já instalado */}
+      {mode === 'server' && installed && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                <Network className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Compartilhar com outros terminais</h3>
+                <p className="text-xs text-muted-foreground">
+                  Libera o MariaDB para receber conexões de outros PCs na mesma rede.
+                </p>
+              </div>
+            </div>
+            <Switch checked={shareOnLan} onCheckedChange={handleToggleShare} disabled={togglingShare} />
+          </div>
+
+          {shareOnLan && lanInfo && lanInfo.lanIps.length > 0 && (
+            <div className="rounded-lg bg-black/20 p-3 space-y-2 text-xs">
+              <div className="text-muted-foreground">Use um destes endereços nos terminais adicionais:</div>
+              <div className="space-y-1 font-mono">
+                {lanInfo.lanIps.map((ip) => (
+                  <div key={ip} className="flex items-center gap-2">
+                    <span className="text-primary">{ip}</span>
+                    <span className="text-muted-foreground">:</span>
+                    <span className="text-primary">{lanInfo.port}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[11px] text-warning pt-1 border-t border-white/5 mt-2">
+                ⚠ Você também precisa abrir a porta {lanInfo.port} no <strong>Firewall do Windows</strong> desta
+                máquina. Consulte <code className="text-foreground">docs/multi-terminal.md</code>.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex justify-between pt-4">
         <Button variant="ghost" onClick={onBack} size="lg">
           <ArrowLeft className="w-4 h-4" /> Voltar
         </Button>
         <div className="flex gap-3">
           {!installed ? (
-            <Button size="lg" onClick={handleInstallSchema} disabled={installing || !testResult?.ok}>
-              {installing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-              Instalar banco
-            </Button>
+            mode === 'terminal' ? (
+              <Button size="lg" onClick={handleConnectOnly} disabled={installing || !testResult?.ok}>
+                {installing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plug className="w-4 h-4" />}
+                Conectar
+              </Button>
+            ) : (
+              <Button size="lg" onClick={handleInstallSchema} disabled={installing || !testResult?.ok}>
+                {installing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                Instalar banco
+              </Button>
+            )
           ) : (
             <Button size="lg" onClick={onNext}>
               Próximo <ArrowRight className="w-4 h-4" />

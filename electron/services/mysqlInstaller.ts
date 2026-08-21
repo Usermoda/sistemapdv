@@ -224,13 +224,16 @@ export async function installBundledMariaDB(
 
 async function tryStartMysqldOnce(port: number): Promise<{ ok: boolean; error?: string; child: ChildProcess | null; stderrTail: string }> {
   const p = bundlePaths();
+  // Se o usuário habilitou compartilhamento com terminais na LAN, escuta em 0.0.0.0.
+  // Caso contrário, mantém somente localhost por segurança.
+  const bindAddress = getConfig().get('db.shareOnLan') ? '0.0.0.0' : '127.0.0.1';
   const child = spawn(
     p.mysqld,
     [
       `--datadir=${p.dataDir}`,
       `--basedir=${p.installDir}`,
       `--port=${port}`,
-      '--bind-address=127.0.0.1',
+      `--bind-address=${bindAddress}`,
       '--console',
     ],
     { windowsHide: true, detached: false, stdio: ['ignore', 'pipe', 'pipe'] }

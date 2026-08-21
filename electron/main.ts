@@ -100,7 +100,13 @@ app.whenReady().then(async () => {
       companyConfigured: !!cfg.get('company.registered'),
       printerConfigured: !!cfg.get('printer.configured'),
       setupComplete: !!cfg.get('setup.complete'),
+      mode: cfg.get('setup.mode') ?? 'server',
     };
+  });
+
+  ipcMain.handle('app:set-setup-mode', (_e, mode: 'server' | 'terminal') => {
+    getConfig().set('setup.mode', mode);
+    return { ok: true };
   });
 
   ipcMain.handle('app:quit', () => app.quit());

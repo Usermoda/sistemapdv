@@ -25,8 +25,10 @@ type ConfigSchema = {
   'scale.baudRate'?: number;
   'scale.protocol'?: 'toledo' | 'filizola' | 'urano' | 'generic';
   'setup.complete'?: boolean;
+  'setup.mode'?: 'server' | 'terminal';
   'terminal.id'?: string;
   'app.autoStart'?: boolean;
+  'db.shareOnLan'?: boolean;
 
   // Backup
   'backup.enabled'?: boolean;

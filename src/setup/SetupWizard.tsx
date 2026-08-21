@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Route, Routes, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { AlertTriangle, Check, Database, Building2, Printer, Sparkles, Users, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { isElectron } from '@/lib/api';
+import { api, isElectron } from '@/lib/api';
 import { BipaMark, BipaWordmark } from '@/components/BipaLogo';
 import { WelcomeStep } from './steps/WelcomeStep';
 import { DatabaseStep } from './steps/DatabaseStep';
@@ -13,7 +13,7 @@ import { PaymentMethodsStep } from './steps/PaymentMethodsStep';
 import { UsersStep } from './steps/UsersStep';
 import { FinishStep } from './steps/FinishStep';
 
-const steps = [
+const SERVER_STEPS = [
   { path: 'welcome', label: 'Boas-vindas', icon: Sparkles },
   { path: 'database', label: 'Banco de Dados', icon: Database },
   { path: 'company', label: 'Empresa', icon: Building2 },
@@ -23,10 +23,28 @@ const steps = [
   { path: 'finish', label: 'Concluir', icon: Check },
 ];
 
+// No modo terminal, os cadastros de Empresa/Pagamentos/Usuários já existem no
+// servidor compartilhado — pulamos essas etapas.
+const TERMINAL_STEPS = [
+  { path: 'welcome', label: 'Boas-vindas', icon: Sparkles },
+  { path: 'database', label: 'Servidor', icon: Database },
+  { path: 'printer', label: 'Impressora', icon: Printer },
+  { path: 'finish', label: 'Concluir', icon: Check },
+];
+
 export function SetupWizard() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname.split('/').pop() ?? 'welcome';
+  const [mode, setMode] = useState<'server' | 'terminal'>('server');
+
+  useEffect(() => {
+    if (!isElectron()) return;
+    void api.getSetupStatus().then((s) => setMode(s.mode));
+    // Re-checa quando a rota muda (o usuário pode ter escolhido o modo no DatabaseStep)
+  }, [currentPath]);
+
+  const steps = mode === 'terminal' ? TERMINAL_STEPS : SERVER_STEPS;
   const currentIndex = Math.max(0, steps.findIndex((s) => s.path === currentPath));
 
   useEffect(() => {
@@ -120,9 +138,25 @@ export function SetupWizard() {
             >
               <Routes>
                 <Route path="welcome" element={<WelcomeStep onNext={() => navigate('/setup/database')} />} />
-                <Route path="database" element={<DatabaseStep onNext={() => navigate('/setup/company')} onBack={() => navigate('/setup/welcome')} />} />
+                <Route
+                  path="database"
+                  element={
+                    <DatabaseStep
+                      onNext={() => navigate(mode === 'terminal' ? '/setup/printer' : '/setup/company')}
+                      onBack={() => navigate('/setup/welcome')}
+                    />
+                  }
+                />
                 <Route path="company" element={<CompanyStep onNext={() => navigate('/setup/printer')} onBack={() => navigate('/setup/database')} />} />
-                <Route path="printer" element={<PrinterStep onNext={() => navigate('/setup/payments')} onBack={() => navigate('/setup/company')} />} />
+                <Route
+                  path="printer"
+                  element={
+                    <PrinterStep
+                      onNext={() => navigate(mode === 'terminal' ? '/setup/finish' : '/setup/payments')}
+                      onBack={() => navigate(mode === 'terminal' ? '/setup/database' : '/setup/company')}
+                    />
+                  }
+                />
                 <Route path="payments" element={<PaymentMethodsStep onNext={() => navigate('/setup/users')} onBack={() => navigate('/setup/printer')} />} />
                 <Route path="users" element={<UsersStep onNext={() => navigate('/setup/finish')} onBack={() => navigate('/setup/payments')} />} />
                 <Route path="finish" element={<FinishStep />} />

@@ -9,6 +9,22 @@ e o projeto adota [Versionamento Semântico (SemVer)](https://semver.org/lang/pt
 ## [Não lançado]
 
 ### Adicionado
+- **Multi-terminal**: seletor "Servidor principal" / "Terminal adicional" no
+  primeiro passo de banco de dados do wizard.
+  - No modo **terminal**, o wizard só coleta host/porta/user/senha do servidor
+    remoto, salva a config e pula automaticamente as etapas de Empresa,
+    Pagamentos e Usuários (todos os dados vivem no servidor compartilhado).
+  - No modo **servidor**, após o banco instalado, aparece um switch
+    **"Compartilhar com outros terminais"** que:
+    - Reinicia o MariaDB portable com `bind-address=0.0.0.0`
+    - Executa `CREATE USER 'root'@'%'` + `GRANT ALL PRIVILEGES` + `FLUSH`
+    - Lista os IPs LAN da máquina para o usuário informar aos terminais
+    - Avisa sobre abrir a porta no Firewall do Windows
+  - Nova config: `setup.mode` (`'server' | 'terminal'`) e `db.shareOnLan`.
+  - Novos IPCs: `app:set-setup-mode`, `db:set-lan-sharing`, `db:get-lan-info`.
+- Documentação completa em [`docs/multi-terminal.md`](docs/multi-terminal.md)
+  com diagrama de rede, comandos de firewall, resolução de problemas e
+  recomendações de segurança para redes locais.
 - **Wizard: novas etapas "Pagamentos" e "Usuários"** entre Impressora e Concluir.
   - Pagamentos: ativa/desativa/cria formas de pagamento, com presets (PIX, cartões,
     voucher, fiado, cheque) em 1 clique. Formas protegidas (Dinheiro/Cartão) já vêm ativas.
