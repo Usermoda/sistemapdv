@@ -2,8 +2,23 @@ import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
-import EmbeddedPostgres from 'embedded-postgres';
 import { getConfig } from './config';
+
+// embedded-postgres é ESM puro; precisa ser importado via dynamic import()
+// (o main do Electron é bundled em CJS). Carregamos lazy no primeiro uso.
+type EmbeddedPostgresInstance = {
+  initialise(): Promise<void>;
+  start(): Promise<void>;
+  stop(): Promise<void>;
+};
+let EmbeddedPostgresCtor: (new (opts: Record<string, unknown>) => EmbeddedPostgresInstance) | null = null;
+async function loadEmbeddedPostgres() {
+  if (!EmbeddedPostgresCtor) {
+    const mod = await import('embedded-postgres');
+    EmbeddedPostgresCtor = (mod as { default: new (opts: Record<string, unknown>) => EmbeddedPostgresInstance }).default;
+  }
+  return EmbeddedPostgresCtor;
+}
 
 /**
  * Instalador do PostgreSQL portable via biblioteca `embedded-postgres`.
@@ -19,7 +34,7 @@ const PG_USER = 'postgres';
 // Senha padrão do bundle. Em produção o usuário pode ajustar em Configurações.
 const PG_PASSWORD = 'bipa-local';
 
-let instance: EmbeddedPostgres | null = null;
+let instance: EmbeddedPostgresInstance | null = null;
 let running = false;
 
 function bundlePaths() {
@@ -68,9 +83,10 @@ async function findFreePort(start = PG_DEFAULT_PORT, max = 5450): Promise<number
   throw new Error(`Nenhuma porta livre entre ${start} e ${max}`);
 }
 
-function makeInstance(port: number): EmbeddedPostgres {
+async function makeInstance(port: number): Promise<EmbeddedPostgresInstance> {
   const p = bundlePaths();
-  return new EmbeddedPostgres({
+  const Ctor = await loadEmbeddedPostgres();
+  return new Ctor({
     databaseDir: p.dataDir,
     user: PG_USER,
     password: PG_PASSWORD,
@@ -99,7 +115,7 @@ export async function installBundledPostgres(
 
     if (!isBundledInstalled()) {
       onProgress({ phase: 'download', msg: 'Baixando PostgreSQL portátil...', pct: 5 });
-      instance = makeInstance(port);
+      instance = await makeInstance(port);
       // A biblioteca baixa os binários automaticamente na primeira chamada
       // e roda initdb. Não emite eventos granulares — simulamos progresso.
       onProgress({ phase: 'extract', msg: 'Preparando binários...', pct: 40 });
@@ -107,7 +123,7 @@ export async function installBundledPostgres(
       await instance.initialise();
       onProgress({ phase: 'start', msg: 'Iniciando PostgreSQL...', pct: 85 });
     } else {
-      instance = makeInstance(port);
+      instance = await makeInstance(port);
       onProgress({ phase: 'start', msg: 'Iniciando PostgreSQL...', pct: 60 });
     }
 
@@ -137,7 +153,7 @@ export async function startBundledPostgres(port?: number): Promise<{ ok: boolean
     if (running && instance) return { ok: true };
     if (!isBundledInstalled()) return { ok: false, error: 'PostgreSQL bundled não instalado' };
     const p = port ?? getConfig().get('db.port') ?? PG_DEFAULT_PORT;
-    instance = makeInstance(p);
+    instance = await makeInstance(p);
     await instance.start();
     running = true;
     return { ok: true };

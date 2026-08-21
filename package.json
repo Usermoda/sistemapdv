@@ -1,6 +1,6 @@
 {
   "name": "sistema-pdv",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Bipa — Sistema de PDV moderno",
   "main": "dist-electron/main.cjs",
   "author": "Grupo Maxcenter",

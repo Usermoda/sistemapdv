@@ -36,7 +36,9 @@ export function registerDbHandlers(): void {
   });
 
   ipcMain.handle('db:install-schema', async (event, cfg: ConnectionConfig, database: string) => {
-    const schemaPath = path.join(process.env.APP_ROOT!, 'db', 'schema.sql');
+    // schema.sql é o dump antigo (MySQL/InnoDB) — mantido no repo só pra
+    // referência histórica. Depois da migração pra PG, usamos schema.pg.sql.
+    const schemaPath = path.join(process.env.APP_ROOT!, 'db', 'schema.pg.sql');
     const sql = await fs.readFile(schemaPath, 'utf8');
     const sender = BrowserWindow.fromWebContents(event.sender);
     const res = await executeSchema(cfg, database, sql, (msg, pct) => {

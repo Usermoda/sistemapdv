@@ -181,6 +181,52 @@ function wrapClient(client: pg.PoolClient): CompatConnection {
 
 // ==== APIs públicas (mesma superficie de antes) ==========================
 
+/**
+ * Sem `client_encoding: 'UTF8'` o PG do Windows envia mensagens de erro em
+ * Windows-1252 (locale do sistema) e o Node interpreta como UTF-8 — resultado:
+ * caracteres acentuados viram U+FFFD (o "�" de replacement).
+ * Isso ajuda pra queries pós-auth; erros de autenticação chegam antes do
+ * client_encoding entrar em vigor, então também usamos `pgErrorMessage` abaixo.
+ */
+const PG_CONN_DEFAULTS = { client_encoding: 'UTF8' } as const;
+
+/**
+ * Erros de auth/conexão do PG chegam no locale do servidor (Windows-1252
+ * no Windows brasileiro), viram lixo `����` quando decodificados como UTF-8.
+ * Como o SQLSTATE é ASCII e estável, mapeamos por código para textos limpos.
+ * Fora dos códigos conhecidos, strippamos os U+FFFD e devolvemos o resto.
+ */
+type PgError = Error & { code?: string };
+
+export function pgErrorMessage(err: unknown): string {
+  const e = err as PgError;
+  const code = e?.code;
+  const rawMsg = e?.message ?? String(err);
+  const hasGarbled = /�/.test(rawMsg);
+  const clean = () => rawMsg.replace(/�+/g, '').replace(/\s+/g, ' ').trim();
+
+  switch (code) {
+    case '28P01':
+      return 'Senha incorreta para o usuário informado.';
+    case '28000':
+      return 'Usuário sem permissão para conectar (verifique pg_hba.conf).';
+    case '3D000':
+      return 'Banco de dados informado não existe.';
+    case '3F000':
+      return 'Schema informado não existe.';
+    case '08P01':
+      return 'Falha no protocolo PostgreSQL — a porta responde algo que não é PG.';
+    case '08001':
+    case 'ECONNREFUSED':
+      return 'Não foi possível conectar ao servidor PostgreSQL nesse host/porta.';
+    case 'ETIMEDOUT':
+      return 'Tempo esgotado ao conectar no servidor PostgreSQL.';
+    case '42501':
+      return 'Permissão negada.';
+  }
+  return hasGarbled ? clean() || 'Falha ao conectar ao PostgreSQL.' : rawMsg;
+}
+
 export async function testConnection(
   cfg: ConnectionConfig
 ): Promise<{ ok: boolean; error?: string; version?: string }> {
@@ -192,6 +238,7 @@ export async function testConnection(
     // Se `database` não vier, conecta ao banco `postgres` padrão só pra testar login
     database: cfg.database || 'postgres',
     connectionTimeoutMillis: 5000,
+    ...PG_CONN_DEFAULTS,
   });
   try {
     await client.connect();
@@ -199,7 +246,7 @@ export async function testConnection(
     await client.end();
     return { ok: true, version: r.rows[0]?.v as string };
   } catch (err) {
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: pgErrorMessage(err) };
   }
 }
 
@@ -211,6 +258,7 @@ export async function listDatabases(cfg: ConnectionConfig): Promise<string[]> {
     password: cfg.password,
     database: 'postgres',
     connectionTimeoutMillis: 5000,
+    ...PG_CONN_DEFAULTS,
   });
   try {
     await client.connect();
@@ -218,8 +266,10 @@ export async function listDatabases(cfg: ConnectionConfig): Promise<string[]> {
       "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname"
     );
     return r.rows.map((row) => row.datname as string);
+  } catch (err) {
+    throw new Error(pgErrorMessage(err));
   } finally {
-    await client.end();
+    await client.end().catch(() => {});
   }
 }
 
@@ -234,6 +284,7 @@ export async function createDatabase(cfg: ConnectionConfig, name: string): Promi
     password: cfg.password,
     database: 'postgres',
     connectionTimeoutMillis: 5000,
+    ...PG_CONN_DEFAULTS,
   });
   try {
     await client.connect();
@@ -242,8 +293,10 @@ export async function createDatabase(cfg: ConnectionConfig, name: string): Promi
     if (r.rowCount === 0) {
       await client.query(`CREATE DATABASE "${safe}" ENCODING 'UTF8'`);
     }
+  } catch (err) {
+    throw new Error(pgErrorMessage(err));
   } finally {
-    await client.end();
+    await client.end().catch(() => {});
   }
 }
 
@@ -260,6 +313,7 @@ export async function executeSchema(
     password: cfg.password,
     database,
     connectionTimeoutMillis: 10000,
+    ...PG_CONN_DEFAULTS,
   });
   await client.connect();
   try {
@@ -272,9 +326,9 @@ export async function executeSchema(
       try {
         await client.query(rewriteSql(trimmed));
       } catch (e) {
-        const msg = (e as Error).message;
+        const msg = pgErrorMessage(e);
         // Tolera "já existe / duplicated"
-        if (!/exists|duplicate|already/i.test(msg)) {
+        if (!/exists|duplicate|already|existe/i.test(msg)) {
           const preview = trimmed.replace(/\s+/g, ' ').slice(0, 120);
           failures.push({ preview, error: msg });
           console.warn('[executeSchema] statement falhou:', preview, '→', msg);
@@ -298,11 +352,48 @@ function splitSqlStatements(sql: string): string[] {
   let inSingle = false;
   let inDouble = false;
   let inDollar = false;
+  let inLineComment = false;
+  let inBlockComment = false;
   for (let i = 0; i < sql.length; i++) {
     const c = sql[i];
+    const next = sql[i + 1];
     const prev = sql[i - 1];
-    // PG dollar-quoted strings ($$...$$) — não implementamos completo, só o básico
-    if (c === '$' && sql[i + 1] === '$') inDollar = !inDollar;
+
+    // Comentário de linha `--` (só reconhece fora de string). Consome até \n
+    // sem tocar em nenhum outro estado — se não fizesse isso, um `;` ou aspas
+    // dentro do comentário quebrariam o parser.
+    if (inLineComment) {
+      buf += c;
+      if (c === '\n') inLineComment = false;
+      continue;
+    }
+    // Comentário de bloco /* ... */
+    if (inBlockComment) {
+      buf += c;
+      if (c === '*' && next === '/') {
+        buf += '/';
+        i++;
+        inBlockComment = false;
+      }
+      continue;
+    }
+    if (!inSingle && !inDouble && !inDollar) {
+      if (c === '-' && next === '-') {
+        buf += '--';
+        i++;
+        inLineComment = true;
+        continue;
+      }
+      if (c === '/' && next === '*') {
+        buf += '/*';
+        i++;
+        inBlockComment = true;
+        continue;
+      }
+    }
+
+    // PG dollar-quoted strings ($$...$$) — implementação básica
+    if (c === '$' && next === '$') inDollar = !inDollar;
     if (c === "'" && prev !== '\\' && !inDouble && !inDollar) inSingle = !inSingle;
     else if (c === '"' && prev !== '\\' && !inSingle && !inDollar) inDouble = !inDouble;
     if (c === ';' && !inSingle && !inDouble && !inDollar) {
@@ -330,6 +421,7 @@ export async function getPool(): Promise<CompatPool> {
     database,
     max: 10,
     idleTimeoutMillis: 30_000,
+    ...PG_CONN_DEFAULTS,
   });
   return wrapPool(pgPool);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   AlertCircle,
@@ -42,7 +42,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
   const [mode, setMode] = useState<'server' | 'terminal'>('server');
   const [detection, setDetection] = useState<Detection | null>(null);
   const [detecting, setDetecting] = useState(true);
-  const [cfg, setCfg] = useState<ConnectionConfig>({ host: '127.0.0.1', port: 3306, user: 'root', password: '' });
+  const [cfg, setCfg] = useState<ConnectionConfig>({ host: '127.0.0.1', port: 5432, user: 'postgres', password: '' });
   const [dbName, setDbName] = useState('sistema_pdv');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -69,14 +69,32 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
       offSchema();
       offBundled();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-detecta quando o usuário troca a porta (com debounce pra não bater
+  // no IPC a cada tecla). Pula o primeiro render — a detecção inicial já
+  // foi feita no useEffect de mount acima.
+  const skipFirstPortDetect = useRef(true);
+  useEffect(() => {
+    if (skipFirstPortDetect.current) {
+      skipFirstPortDetect.current = false;
+      return;
+    }
+    if (mode !== 'server') return;
+    const t = setTimeout(() => {
+      void runDetection();
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfg.port, mode]);
 
   const applyMode = async (m: 'server' | 'terminal') => {
     setMode(m);
     await api.setSetupMode(m);
     // Se muda para terminal, reseta config para host vazio para o usuário preencher o IP do servidor.
     if (m === 'terminal') {
-      setCfg({ host: '', port: 3306, user: 'root', password: '' });
+      setCfg({ host: '', port: 5432, user: 'postgres', password: '' });
       setTestResult(null);
       setInstalled(false);
     }
@@ -102,7 +120,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
       const r = await api.db.setLanSharing(enabled);
       if (!r.ok) throw new Error(r.error ?? 'Falha');
       setShareOnLan(!!r.enabled);
-      if (r.lanIps) setLanInfo({ lanIps: r.lanIps, port: r.port ?? 3306 });
+      if (r.lanIps) setLanInfo({ lanIps: r.lanIps, port: r.port ?? 5432 });
       toast.success(enabled ? 'Servidor liberado na rede local' : 'Compartilhamento LAN desativado');
     } catch (e) {
       toast.error((e as Error).message);
@@ -114,7 +132,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
     if (!lanInfo) return;
     setAddingFwRule(true);
     try {
-      const r = await api.addFirewallRule(lanInfo.port, 'Bipa MariaDB');
+      const r = await api.addFirewallRule(lanInfo.port, 'Bipa PostgreSQL');
       if (!r.ok) throw new Error(r.error ?? 'Falha');
       toast.success(`Porta ${lanInfo.port} liberada no Firewall`);
     } catch (e) {
@@ -129,7 +147,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
       const d = await api.db.detect(cfg.port);
       setDetection(d);
     } catch (e) {
-      toast.error(`Falha ao detectar MySQL: ${(e as Error).message}`);
+      toast.error(`Falha ao detectar PostgreSQL: ${(e as Error).message}`);
     }
     setDetecting(false);
   };
@@ -140,15 +158,15 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
     try {
       const r = await api.db.installBundled();
       if (r.ok) {
-        const chosenPort = r.port ?? 3306;
-        toast.success(`MariaDB instalado na porta ${chosenPort}`);
-        const nextCfg = { host: '127.0.0.1', port: chosenPort, user: 'root', password: '' };
+        const chosenPort = r.port ?? 5432;
+        toast.success(`PostgreSQL instalado na porta ${chosenPort}`);
+        const nextCfg = { host: '127.0.0.1', port: chosenPort, user: 'postgres', password: '' };
         setCfg(nextCfg);
         await runDetection();
         const test = await api.db.test(nextCfg);
         setTestResult({
           ok: test.ok,
-          message: test.ok ? `Conectado — ${test.version ?? 'MariaDB'}` : test.error ?? 'Erro',
+          message: test.ok ? `Conectado — ${test.version ?? 'PostgreSQL'}` : test.error ?? 'Erro',
         });
       } else {
         toast.error(`Falha na instalação: ${r.error}`);
@@ -163,45 +181,26 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
     setTesting(true);
     setTestResult(null);
     const r = await api.db.test(cfg);
-    if (r.ok && r.innodb === false) {
-      setTestResult({
-        ok: true,
-        message: `Conectado — MySQL ${r.version ?? ''} (⚠ InnoDB desativado: será usado o MariaDB portable ao instalar)`,
-      });
-    } else {
-      setTestResult({ ok: r.ok, message: r.ok ? `Conectado — MySQL ${r.version ?? ''}` : r.error ?? 'Erro ao conectar' });
-    }
+    setTestResult({
+      ok: r.ok,
+      message: r.ok ? `Conectado — ${r.version ?? 'PostgreSQL'}` : r.error ?? 'Erro ao conectar',
+    });
     setTesting(false);
+    // Se conectou, refresca o card de status pra refletir o servidor real
+    // (evita o usuário ter que clicar "Detectar novamente" manualmente).
+    if (r.ok) void runDetection();
   };
 
   const handleInstallSchema = async () => {
     setInstalling(true);
     setProgress({ msg: 'Verificando servidor...', pct: 0 });
     try {
-      let effectiveCfg = cfg;
+      const effectiveCfg = cfg;
 
-      // 1) Confirma conexão e disponibilidade do InnoDB (o PDV exige InnoDB).
+      // Testa conexão
       const test = await api.db.test(cfg);
       if (!test.ok) throw new Error(test.error ?? 'Falha ao conectar no servidor informado');
 
-      // 2) Servidor sem InnoDB (ex.: MySQL com skip-innodb) → provisiona o
-      //    MariaDB portable automaticamente e passa a usá-lo, sem intervenção manual.
-      if (test.innodb === false) {
-        toast.warning('Servidor sem InnoDB — instalando o MariaDB portable automaticamente...');
-        setInstalling(false);
-        setAutoInstalling(true);
-        setAutoProgress({ phase: 'download', msg: 'Preparando MariaDB portable...', pct: 0 });
-        const r = await api.db.installBundled();
-        setAutoInstalling(false);
-        if (!r.ok) throw new Error(`Falha ao instalar o MariaDB portable: ${r.error}`);
-        effectiveCfg = { host: '127.0.0.1', port: r.port ?? 3306, user: 'root', password: '' };
-        setCfg(effectiveCfg);
-        await runDetection();
-        toast.success(`MariaDB portable pronto na porta ${effectiveCfg.port} (com InnoDB)`);
-        setInstalling(true);
-      }
-
-      // 3) Cria o banco e instala a estrutura no servidor efetivo (InnoDB garantido).
       setProgress({ msg: 'Criando banco de dados...', pct: 5 });
       await api.db.createDatabase(effectiveCfg, dbName);
       setProgress({ msg: 'Instalando estrutura...', pct: 10 });
@@ -245,7 +244,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
         <h1 className="text-3xl font-bold tracking-tight mb-2">Banco de Dados</h1>
         <p className="text-muted-foreground">
           {mode === 'server'
-            ? 'Vamos detectar o MySQL, criar o banco e instalar toda a estrutura.'
+            ? 'Vamos detectar o PostgreSQL, criar o banco e instalar toda a estrutura.'
             : 'Informe o endereço do servidor Bipa principal na sua rede.'}
         </p>
       </div>
@@ -295,8 +294,8 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
               <Server className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h3 className="font-semibold">Status do MySQL</h3>
-              <p className="text-xs text-muted-foreground">Detecção automática do servidor local</p>
+              <h3 className="font-semibold">Status do PostgreSQL</h3>
+              <p className="text-xs text-muted-foreground">Detecção do PostgreSQL local ou portátil</p>
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={runDetection} disabled={detecting || autoInstalling}>
@@ -314,7 +313,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
               <>
                 <StatusRow
                   variant="ok"
-                  label={detection?.bundled ? 'MariaDB portable instalado' : 'MySQL/MariaDB instalado'}
+                  label={detection?.bundled ? 'PostgreSQL portable instalado' : 'PostgreSQL instalado'}
                   detail={detection?.version}
                 />
                 <StatusRow variant="ok" label={`Serviço rodando na porta ${detection?.port}`} />
@@ -324,7 +323,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
               <>
                 <StatusRow
                   variant="ok"
-                  label={detection?.bundled ? 'MariaDB portable instalado' : 'MySQL/MariaDB instalado'}
+                  label={detection?.bundled ? 'PostgreSQL portable instalado' : 'PostgreSQL instalado'}
                   detail={detection?.version}
                 />
                 <StatusRow variant="warn" label="Serviço não está rodando" />
@@ -332,13 +331,13 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
             )}
             {status === 'not-installed' && (
               <>
-                <StatusRow variant="warn" label="Nenhum servidor MySQL detectado" />
+                <StatusRow variant="warn" label="Nenhum PostgreSQL detectado" />
                 <StatusRow variant="warn" label={`Porta ${detection?.port} livre`} detail="pronto para instalar" />
               </>
             )}
             {status === 'port-conflict' && (
               <>
-                <StatusRow variant="warn" label="Nenhum MySQL/MariaDB instalado" />
+                <StatusRow variant="warn" label="Nenhum PostgreSQL instalado" />
                 <StatusRow
                   variant="error"
                   label={`Porta ${detection?.port} está em uso por outro processo`}
@@ -348,7 +347,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
                   <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-destructive" />
                   <div className="text-xs">
                     <p className="text-foreground/90">
-                      Algo está usando a porta {detection?.port} mas não conseguimos identificar como MySQL.
+                      Algo está usando a porta {detection?.port} mas não conseguimos identificar como PostgreSQL.
                       Feche o processo conflitante ou escolha outra porta para instalar.
                     </p>
                   </div>
@@ -372,7 +371,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
             <div className="flex-1">
               <h3 className="font-semibold text-lg mb-1">Instalação automática disponível</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Podemos baixar e configurar o MariaDB automaticamente (~90 MB). Portable, não requer permissões de administrador, roda apenas para este sistema.
+                Podemos baixar e configurar o PostgreSQL automaticamente (~40 MB). Portable, não requer permissões de administrador, roda apenas para este sistema.
               </p>
               <div className="flex gap-3">
                 <Button size="lg" onClick={handleAutoInstall}>
@@ -397,7 +396,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-white/5 bg-card/50 p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold">Instalando MariaDB...</h3>
+              <h3 className="font-semibold">Instalando PostgreSQL...</h3>
               <p className="text-xs text-muted-foreground">Não feche o app durante a instalação</p>
             </div>
             <span className="text-sm text-muted-foreground">{autoProgress?.pct ?? 0}%</span>
@@ -432,7 +431,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
           <div>
             <h3 className="font-semibold">{mode === 'terminal' ? 'Conectar ao servidor' : 'Conexão'}</h3>
             <p className="text-xs text-muted-foreground">
-              {mode === 'terminal' ? 'IP ou nome da máquina onde o Bipa está instalado' : 'Credenciais do servidor MySQL'}
+              {mode === 'terminal' ? 'IP ou nome da máquina onde o Bipa está instalado' : 'Credenciais do servidor PostgreSQL'}
             </p>
           </div>
         </div>
@@ -442,7 +441,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
             <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary" />
             <div className="text-muted-foreground">
               Antes de continuar, verifique se na máquina servidor você <strong>ativou o compartilhamento LAN</strong>
-              (aba deste passo no servidor) e liberou a porta <strong>3306/3307</strong> no Firewall do Windows.
+              (aba deste passo no servidor) e liberou a porta <strong>5432</strong> no Firewall do Windows.
               Veja o guia <code className="text-foreground">docs/multi-terminal.md</code>.
             </div>
           </div>
@@ -508,7 +507,7 @@ export function DatabaseStep({ onNext, onBack }: { onNext: () => void; onBack: (
               <div>
                 <h3 className="font-semibold">Compartilhar com outros terminais</h3>
                 <p className="text-xs text-muted-foreground">
-                  Libera o MariaDB para receber conexões de outros PCs na mesma rede.
+                  Libera o PostgreSQL para receber conexões de outros PCs na mesma rede.
                 </p>
               </div>
             </div>
