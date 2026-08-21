@@ -8,10 +8,6 @@ release
 .DS_Store
 .vscode
 
-# Legacy vendor reference material (kept locally, not published)
-TagComercio 2.0 v16070700/
-tagcom_banco.sql
-
 # Build artifacts (tsc -b / vite config typecheck)
 *.tsbuildinfo
 vite.config.js

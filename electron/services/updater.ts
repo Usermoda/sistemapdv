@@ -28,8 +28,10 @@ function broadcast(state: UpdaterState) {
  * Chame uma vez após `app.whenReady()`.
  */
 export function initUpdater(): void {
-  // Nunca faz download automático no boot — o front decide baseado em prefs
-  autoUpdater.autoDownload = false;
+  // Download automático + aplicação silenciosa ao fechar o app.
+  // O usuário só vê um toast informativo "Atualização pronta" quando
+  // termina o download — nenhuma ação é obrigatória.
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowDowngrade = false;
 

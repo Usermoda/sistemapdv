@@ -8,12 +8,37 @@ e o projeto adota [Versionamento Semântico (SemVer)](https://semver.org/lang/pt
 
 ## [Não lançado]
 
+## [0.1.4] - 2026-08-21
+
+### Alterado
+- **Auto-update silencioso**: `autoDownload = true` — o app baixa em background
+  automaticamente ao detectar uma versão nova, sem exigir clique. Toast discreto
+  informa "Baixando v0.x.y em segundo plano". Quando termina, um pill pequeno no
+  canto inferior direito mostra "Atualização v0.x.y pronta — aplica ao fechar" +
+  botão opcional "Aplicar agora". Ao fechar o Bipa naturalmente, aplica
+  silencioso via `autoInstallOnAppQuit`. Sem interações forçadas no meio do uso.
+- O banner grande com "Baixar" / "Reiniciar e aplicar" foi trocado por essa UI
+  mais discreta. Botão "Verificar" em Configurações continua como fallback.
+
+## [0.1.3] - 2026-08-21
+
+### Corrigido
+- NSIS `artifactName` explícito `${productName}-Setup-${version}.${ext}` — o
+  padrão gerava `Bipa Setup X.Y.Z.exe` (com espaços), que o
+  `softprops/action-gh-release` renomeia para `Bipa.Setup.X.Y.Z.exe` (pontos)
+  no upload, quebrando o link em `latest.yml` que aponta pra `Bipa-Setup-*`.
+
+## [0.1.2] - 2026-08-21
+
+### Corrigido
+- CI: incluir `latest.yml` e `*.blockmap` nos arquivos publicados no Release.
+  Sem eles, o `electron-updater` retornava 404 na verificação.
+
 ## [0.1.1] - 2026-08-21
 
 ### Alterado
 - **Release de teste OTA** — primeira versão publicada com `electron-updater`
-  ativo. Se você está vendo esta linha e o banner apareceu, é porque o
-  fluxo funcionou 🎉
+  ativo. (Deletada — tinha bug de assets.)
 
 ## [Não lançado — 0.1.0]
 

@@ -48,23 +48,31 @@ Pronto. Em até ~15min todos os Bipas em produção recebem a notificação.
 
 ## O que o cliente vê
 
-1. Abre o Bipa como sempre.
-2. **10 segundos após o boot**, o app pergunta pro GitHub qual é a última
-   versão publicada. Se for maior que a instalada, aparece um banner no canto
-   inferior direito:
-   > **Nova versão disponível — v0.2.0**
-   > Baixar agora em segundo plano? Você continua trabalhando normalmente.
-   > [ Baixar ]   [ Mais tarde ]
-3. Ao clicar em **Baixar**, o app baixa em background usando **deltas**
-   (blockmap) — só os pedaços que mudaram, tipicamente 5–15 MB.
-4. Quando termina, o banner muda para:
-   > **Atualização v0.2.0 pronta!**
-   > O Bipa vai fechar e reabrir para aplicar.
-   > [ Reiniciar e aplicar ]   [ Mais tarde ]
-5. Se clicar em "Mais tarde", a atualização aplica automaticamente **na
-   próxima vez que o cliente fechar o Bipa**.
+O fluxo é **silencioso por padrão** — o cliente não precisa clicar em nada:
 
-Nada é forçado no meio do uso — importante em ambiente de caixa.
+1. Abre o Bipa como sempre.
+2. **10 segundos após o boot**, o app checa o GitHub. Se houver versão nova:
+3. **Download automático** em segundo plano usando **deltas** via blockmap —
+   só os pedaços que mudaram, tipicamente 5–15 MB. Um toast discreto
+   confirma: *"Baixando atualização v0.2.0 em segundo plano"*.
+4. Ao terminar o download, aparece um pill fininho no canto inferior direito:
+   > 🔄  **Atualização v0.2.0 pronta**
+   > Aplica automaticamente ao fechar o Bipa.
+   > [ Aplicar agora ]   ✕
+5. Se o cliente **não fizer nada**, a atualização é aplicada silenciosamente
+   **na próxima vez que fechar o Bipa** (fim de expediente).
+6. Se preferir aplicar antes, clica em **Aplicar agora** — o Bipa fecha,
+   sobrescreve os arquivos e reabre em 3–5 segundos na versão nova.
+
+Nada é forçado no meio do uso: o cliente continua vendendo enquanto o download
+roda, e a aplicação só acontece quando ele explicitamente pede ou quando o
+processo já está sendo fechado.
+
+### Fallback manual
+
+Se a checagem automática falhar (rede offline, servidor GitHub fora),
+**Configurações → Instalação e terminal → Atualizações do sistema** tem um
+botão **"Verificar"** que dispara o check imediatamente. É o plano B.
 
 ## O que **não** muda com o update
 
