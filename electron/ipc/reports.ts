@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import type { RowDataPacket } from 'mysql2/promise';
+import type { RowDataPacket } from '../services/db';
 import { getPool } from '../services/db';
 
 export function registerReportsHandlers(): void {

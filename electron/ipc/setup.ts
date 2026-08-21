@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { getPool } from '../services/db';
+import { getPool, type ResultSetHeader, type RowDataPacket } from '../services/db';
 import { getConfig } from '../services/config';
 
 export type CompanyData = {
@@ -40,7 +40,7 @@ export function registerSetupHandlers(): void {
     const fields = Object.keys(data);
     const placeholders = fields.map(() => '?').join(', ');
     const values = fields.map((f) => (data as Record<string, unknown>)[f]);
-    const [result] = await pool.query<import('mysql2').ResultSetHeader>(
+    const [result] = await pool.query<ResultSetHeader>(
       `INSERT INTO cad_empresa (${fields.map((f) => `\`${f}\``).join(', ')}) VALUES (${placeholders})`,
       values
     );
@@ -54,7 +54,7 @@ export function registerSetupHandlers(): void {
     const id = cfg.get('company.id');
     if (!id) return null;
     const pool = await getPool();
-    const [rows] = await pool.query<import('mysql2').RowDataPacket[]>(
+    const [rows] = await pool.query<RowDataPacket[]>(
       'SELECT * FROM cad_empresa WHERE id = ?',
       [id]
     );

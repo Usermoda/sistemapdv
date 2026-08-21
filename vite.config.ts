@@ -5,8 +5,9 @@ import path from 'node:path';
 
 const electronExternals = [
   'electron',
-  'mysql2',
-  'mysql2/promise',
+  'pg',
+  'pg-native',
+  'embedded-postgres',
   'serialport',
   'node-thermal-printer',
   'bcryptjs',

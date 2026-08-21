@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import type { PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import type { Connection, RowDataPacket, ResultSetHeader } from '../services/db';
 import { getPool } from '../services/db';
 import { getConfig } from '../services/config';
 
@@ -87,7 +87,7 @@ export function registerPdvHandlers(): void {
        FROM cad_produtos p
        JOIN mv_vendas_movimento m ON m.id_produto = p.id
        WHERE (p.inativo IS NULL OR p.inativo = 0)
-         AND m.data_venda >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+         AND m.data_venda >= CURRENT_DATE - (? || ' days')::INTERVAL
        GROUP BY p.id
        ORDER BY total_vendido DESC LIMIT ${limit}`,
       [days]
@@ -164,8 +164,8 @@ export function registerPdvHandlers(): void {
         `SELECT id_produto, quantidade_minima, vr_promocao
          FROM cad_produtos_promocao
          WHERE inativo = 0
-           AND data_inicio <= CURDATE()
-           AND (data_fim IS NULL OR data_fim >= CURDATE())
+           AND data_inicio <= CURRENT_DATE
+           AND (data_fim IS NULL OR data_fim >= CURRENT_DATE)
          ORDER BY quantidade_minima ASC`
       );
       return rows;
@@ -177,8 +177,8 @@ export function registerPdvHandlers(): void {
   ipcMain.handle('pdv:list-payment-methods', async () => {
     const pool = await getPool();
     const [[hasInativo]] = await pool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cad_modo_lancamento' AND COLUMN_NAME = 'inativo'`
+      `SELECT COUNT(*) AS c FROM information_schema.columns
+       WHERE table_schema = current_schema() AND table_name = 'cad_modo_lancamento' AND column_name = 'inativo'`
     );
     const whereClause = (hasInativo as { c: number }).c > 0 ? 'WHERE COALESCE(inativo, 0) = 0' : '';
     const [rows] = await pool.query<RowDataPacket[]>(
@@ -252,7 +252,7 @@ export function registerPdvHandlers(): void {
     let sangrias = 0;
     let suprimentos = 0;
     const [[cashMovCheck]] = await pool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mv_caixa_movimento'`
+      `SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'mv_caixa_movimento'`
     );
     if ((cashMovCheck as { c: number }).c > 0) {
       const [[mov]] = await pool.query<RowDataPacket[]>(
@@ -273,7 +273,7 @@ export function registerPdvHandlers(): void {
     'pdv:cash-movement',
     async (_e, args: { id_caixa: number; tipo: 'S' | 'A'; valor: number; descricao?: string; id_login?: number }) => {
       const pool = await getPool();
-      const [result] = await pool.query<import('mysql2').ResultSetHeader>(
+      const [result] = await pool.query<ResultSetHeader>(
         `INSERT INTO mv_caixa_movimento (id_caixa, tipo, valor, descricao, id_login) VALUES (?, ?, ?, ?, ?)`,
         [args.id_caixa, args.tipo, args.valor, args.descricao ?? null, args.id_login ?? 1]
       );
@@ -292,7 +292,7 @@ export function registerPdvHandlers(): void {
 
   ipcMain.handle('pdv:save-sale', async (_e, sale: SavedSale & { id_login?: number; terminal?: string; turno?: string }) => {
     const pool = await getPool();
-    const conn: PoolConnection = await pool.getConnection();
+    const conn: Connection = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
@@ -395,7 +395,7 @@ export function registerPdvHandlers(): void {
     const pool = await getPool();
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT COUNT(*) AS pedidos, COALESCE(SUM(vr_total),0) AS total
-       FROM mv_vendas WHERE data_venda = CURDATE()`
+       FROM mv_vendas WHERE data_venda = CURRENT_DATE`
     );
     return rows[0];
   });

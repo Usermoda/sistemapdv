@@ -13,7 +13,7 @@ import { registerReportsHandlers } from './ipc/reports';
 import { startBackupScheduler } from './services/backup';
 import { startFiscalRetryScheduler } from './services/fiscal/emitter';
 import { getConfig } from './services/config';
-import { autoStartIfConfigured, stopBundledMysql } from './services/mysqlInstaller';
+import { autoStartIfConfigured, stopBundledPostgres } from './services/pgInstaller';
 import { runMigrations } from './services/migrations';
 import { initUpdater } from './services/updater';
 
@@ -198,7 +198,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
-  void stopBundledMysql();
+  void stopBundledPostgres();
 });
 
 app.on('window-all-closed', () => {

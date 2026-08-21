@@ -1,7 +1,37 @@
-import mysql from 'mysql2/promise';
+import pg from 'pg';
 import { getConfig } from './config';
 
-let pool: mysql.Pool | null = null;
+/**
+ * Migração MySQL → PostgreSQL
+ * -----------------------------------------------------------------------------
+ * A camada de banco agora usa `pg` mas expõe uma API compat com `mysql2/promise`
+ * pra não quebrar os ~15 arquivos IPC que fazem `pool.query('SELECT ... ?', [x])`.
+ *
+ * O que o adapter faz automaticamente:
+ * - Traduz placeholders `?` → `$1, $2, $3...` (PG usa numerados)
+ * - Remove backticks `` `nome` `` → `nome` (PG usa aspas duplas, mas identificadores
+ *   simples funcionam sem aspas)
+ * - Retorna `[rows, fields]` (tuple mysql2) — o segundo item é vazio, ninguém usa
+ * - Em INSERT sem RETURNING, adiciona `RETURNING id` e coloca em `insertId`
+ *
+ * O que o desenvolvedor precisa cuidar por query (poucos casos):
+ * - `CURRENT_DATE`   → `CURRENT_DATE`
+ * - `NOW()`        → OK (funciona igual)
+ * - `YEAR(x)/MONTH(x)` → `EXTRACT(YEAR FROM x)` / `EXTRACT(MONTH FROM x)`
+ * - `IFNULL(a,b)` → `COALESCE(a,b)`
+ * - `ON DUPLICATE KEY UPDATE` → `ON CONFLICT ... DO UPDATE SET`
+ * - `LAST_INSERT_ID()` → não precisa; use `insertId` do result (populado pelo adapter)
+ */
+
+// ==== Tipos re-exportados (compat com mysql2) ============================
+
+export type RowDataPacket = Record<string, unknown>;
+
+export type ResultSetHeader = {
+  insertId: number;
+  affectedRows: number;
+  changedRows: number;
+};
 
 export type ConnectionConfig = {
   host: string;
@@ -11,58 +41,209 @@ export type ConnectionConfig = {
   database?: string;
 };
 
+// ==== Adapter core =======================================================
+
+let pgPool: pg.Pool | null = null;
+
 /**
- * Verifica se o servidor conectado tem o storage engine InnoDB disponível.
- * O PDV depende de InnoDB (transações + foreign keys); um servidor com
- * `skip-innodb` (have_innodb = DISABLED) faz qualquer CREATE TABLE ... ENGINE=InnoDB
- * falhar com "Unknown storage engine 'InnoDB'".
+ * Reescreve uma query MySQL pra PG:
+ * - Substitui `?` (não dentro de strings) por `$1, $2, $3, ...`
+ * - Remove backticks — identificadores minúsculos sem aspas funcionam em PG
  */
-export async function checkInnodbSupport(conn: mysql.Connection): Promise<boolean> {
-  const [rows] = await conn.query<mysql.RowDataPacket[]>(
-    "SELECT SUPPORT FROM information_schema.ENGINES WHERE ENGINE = 'InnoDB'"
-  );
-  const support = String(rows[0]?.SUPPORT ?? '').toUpperCase();
-  return support === 'YES' || support === 'DEFAULT';
+function rewriteSql(sql: string): string {
+  let out = '';
+  let n = 0;
+  let inSingle = false;
+  let inDouble = false;
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i];
+    const prev = sql[i - 1];
+    if (c === "'" && prev !== '\\' && !inDouble) inSingle = !inSingle;
+    else if (c === '"' && prev !== '\\' && !inSingle) inDouble = !inDouble;
+
+    if (!inSingle && !inDouble) {
+      if (c === '?') {
+        n++;
+        out += '$' + n;
+        continue;
+      }
+      if (c === '`') continue; // strip backticks
+    }
+    out += c;
+  }
+  return out;
 }
+
+/**
+ * Se for INSERT sem RETURNING, adiciona `RETURNING id` pra popular insertId.
+ * Retorna null quando não é um INSERT (pra saber se precisa parsear o retorno).
+ */
+function ensureInsertReturning(sql: string): { sql: string; wasInsertWithoutReturning: boolean } {
+  const trimmed = sql.trim();
+  const isInsert = /^INSERT\s+/i.test(trimmed);
+  if (!isInsert) return { sql, wasInsertWithoutReturning: false };
+  if (/\bRETURNING\b/i.test(trimmed)) return { sql, wasInsertWithoutReturning: false };
+  const withoutSemi = trimmed.replace(/;\s*$/, '');
+  return { sql: withoutSemi + ' RETURNING id', wasInsertWithoutReturning: true };
+}
+
+interface QueryResult<T> {
+  0: T;
+  1: unknown[];
+  length: 2;
+  [Symbol.iterator](): IterableIterator<T | unknown[]>;
+}
+
+async function runQuery<T = unknown>(
+  client: pg.PoolClient | pg.Pool | pg.Client,
+  sql: string,
+  params?: unknown[]
+): Promise<QueryResult<T>> {
+  const rewritten = rewriteSql(sql);
+  const { sql: finalSql, wasInsertWithoutReturning } = ensureInsertReturning(rewritten);
+  try {
+    const r = await client.query({ text: finalSql, values: params as unknown[] });
+    if (wasInsertWithoutReturning) {
+      const insertId = (r.rows?.[0] as { id?: number } | undefined)?.id ?? 0;
+      const header: ResultSetHeader = {
+        insertId: Number(insertId) || 0,
+        affectedRows: r.rowCount ?? 0,
+        changedRows: r.rowCount ?? 0,
+      };
+      return makeTuple<T>(header as unknown as T);
+    }
+    // Se é uma INSERT/UPDATE/DELETE explicito, ainda retornamos ResultSetHeader-like
+    if (/^(UPDATE|DELETE)\s+/i.test(finalSql.trim())) {
+      const header: ResultSetHeader = {
+        insertId: 0,
+        affectedRows: r.rowCount ?? 0,
+        changedRows: r.rowCount ?? 0,
+      };
+      return makeTuple<T>(header as unknown as T);
+    }
+    return makeTuple<T>(r.rows as unknown as T);
+  } catch (e) {
+    // Anexa a query traduzida na mensagem pra facilitar debug
+    (e as Error).message = `${(e as Error).message}\n[SQL] ${finalSql}`;
+    throw e;
+  }
+}
+
+function makeTuple<T>(rows: T): QueryResult<T> {
+  const tuple: unknown = [rows, []];
+  return tuple as QueryResult<T>;
+}
+
+// ==== Wrapper com API mysql2 =============================================
+
+export interface CompatConnection {
+  query<T = unknown>(sql: string, params?: unknown[]): Promise<QueryResult<T>>;
+  beginTransaction(): Promise<void>;
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
+  release(): void;
+  end(): Promise<void>;
+}
+
+export interface CompatPool {
+  query<T = unknown>(sql: string, params?: unknown[]): Promise<QueryResult<T>>;
+  getConnection(): Promise<CompatConnection>;
+  end(): Promise<void>;
+}
+
+function wrapPool(rawPool: pg.Pool): CompatPool {
+  return {
+    query: (sql, params) => runQuery(rawPool, sql, params),
+    async getConnection() {
+      const client = await rawPool.connect();
+      return wrapClient(client);
+    },
+    end: () => rawPool.end(),
+  };
+}
+
+function wrapClient(client: pg.PoolClient): CompatConnection {
+  return {
+    query: (sql, params) => runQuery(client, sql, params),
+    beginTransaction: async () => {
+      await client.query('BEGIN');
+    },
+    commit: async () => {
+      await client.query('COMMIT');
+    },
+    rollback: async () => {
+      await client.query('ROLLBACK');
+    },
+    release: () => client.release(),
+    end: async () => client.release(),
+  };
+}
+
+// ==== APIs públicas (mesma superficie de antes) ==========================
 
 export async function testConnection(
   cfg: ConnectionConfig
-): Promise<{ ok: boolean; error?: string; version?: string; innodb?: boolean }> {
+): Promise<{ ok: boolean; error?: string; version?: string }> {
+  const client = new pg.Client({
+    host: cfg.host,
+    port: cfg.port,
+    user: cfg.user,
+    password: cfg.password,
+    // Se `database` não vier, conecta ao banco `postgres` padrão só pra testar login
+    database: cfg.database || 'postgres',
+    connectionTimeoutMillis: 5000,
+  });
   try {
-    const conn = await mysql.createConnection({
-      host: cfg.host,
-      port: cfg.port,
-      user: cfg.user,
-      password: cfg.password,
-      connectTimeout: 5000,
-    });
-    const [rows] = await conn.query<mysql.RowDataPacket[]>('SELECT VERSION() as v');
-    const innodb = await checkInnodbSupport(conn);
-    await conn.end();
-    return { ok: true, version: rows[0]?.v as string, innodb };
+    await client.connect();
+    const r = await client.query('SELECT version() AS v');
+    await client.end();
+    return { ok: true, version: r.rows[0]?.v as string };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
 }
 
 export async function listDatabases(cfg: ConnectionConfig): Promise<string[]> {
-  const conn = await mysql.createConnection({ ...cfg, connectTimeout: 5000 });
+  const client = new pg.Client({
+    host: cfg.host,
+    port: cfg.port,
+    user: cfg.user,
+    password: cfg.password,
+    database: 'postgres',
+    connectionTimeoutMillis: 5000,
+  });
   try {
-    const [rows] = await conn.query<mysql.RowDataPacket[]>('SHOW DATABASES');
-    return rows.map((r) => r.Database as string);
+    await client.connect();
+    const r = await client.query(
+      "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname"
+    );
+    return r.rows.map((row) => row.datname as string);
   } finally {
-    await conn.end();
+    await client.end();
   }
 }
 
 export async function createDatabase(cfg: ConnectionConfig, name: string): Promise<void> {
-  const conn = await mysql.createConnection({ ...cfg, connectTimeout: 5000 });
+  // Nomes de banco em PG não aceitam parâmetros — sanitizamos aqui
+  const safe = String(name).replace(/[^a-zA-Z0-9_]/g, '');
+  if (!safe) throw new Error('Nome de banco inválido');
+  const client = new pg.Client({
+    host: cfg.host,
+    port: cfg.port,
+    user: cfg.user,
+    password: cfg.password,
+    database: 'postgres',
+    connectionTimeoutMillis: 5000,
+  });
   try {
-    await conn.query(
-      `CREATE DATABASE IF NOT EXISTS \`${name}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
-    );
+    await client.connect();
+    // "CREATE DATABASE IF NOT EXISTS" não existe em PG — precisa verificar antes
+    const r = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [safe]);
+    if (r.rowCount === 0) {
+      await client.query(`CREATE DATABASE "${safe}" ENCODING 'UTF8'`);
+    }
   } finally {
-    await conn.end();
+    await client.end();
   }
 }
 
@@ -72,12 +253,15 @@ export async function executeSchema(
   sql: string,
   onProgress?: (msg: string, pct: number) => void
 ): Promise<{ statements: number; failures: Array<{ preview: string; error: string }> }> {
-  const conn = await mysql.createConnection({
-    ...cfg,
+  const client = new pg.Client({
+    host: cfg.host,
+    port: cfg.port,
+    user: cfg.user,
+    password: cfg.password,
     database,
-    multipleStatements: true,
-    connectTimeout: 10000,
+    connectionTimeoutMillis: 10000,
   });
+  await client.connect();
   try {
     const statements = splitSqlStatements(sql);
     let done = 0;
@@ -86,12 +270,11 @@ export async function executeSchema(
       const trimmed = stmt.trim();
       if (!trimmed) continue;
       try {
-        await conn.query(trimmed);
+        await client.query(rewriteSql(trimmed));
       } catch (e) {
         const msg = (e as Error).message;
-        // Tolera "já existe / duplicado" (schema idempotente).
-        // Loga mas continua nos demais erros — apply best-effort e reporta.
-        if (!/exists|Duplicate/i.test(msg)) {
+        // Tolera "já existe / duplicated"
+        if (!/exists|duplicate|already/i.test(msg)) {
           const preview = trimmed.replace(/\s+/g, ' ').slice(0, 120);
           failures.push({ preview, error: msg });
           console.warn('[executeSchema] statement falhou:', preview, '→', msg);
@@ -101,11 +284,11 @@ export async function executeSchema(
       onProgress?.(`Aplicando estrutura ${done}/${statements.length}`, Math.round((done / statements.length) * 100));
     }
     if (failures.length > 0) {
-      console.warn(`[executeSchema] ${failures.length} statement(s) falharam. As tabelas correspondentes NÃO foram criadas — verifique os logs acima.`);
+      console.warn(`[executeSchema] ${failures.length} statement(s) falharam. Verifique os logs acima.`);
     }
     return { statements: done, failures };
   } finally {
-    await conn.end();
+    await client.end();
   }
 }
 
@@ -114,14 +297,15 @@ function splitSqlStatements(sql: string): string[] {
   let buf = '';
   let inSingle = false;
   let inDouble = false;
-  let inBacktick = false;
+  let inDollar = false;
   for (let i = 0; i < sql.length; i++) {
     const c = sql[i];
     const prev = sql[i - 1];
-    if (c === "'" && prev !== '\\' && !inDouble && !inBacktick) inSingle = !inSingle;
-    else if (c === '"' && prev !== '\\' && !inSingle && !inBacktick) inDouble = !inDouble;
-    else if (c === '`' && !inSingle && !inDouble) inBacktick = !inBacktick;
-    if (c === ';' && !inSingle && !inDouble && !inBacktick) {
+    // PG dollar-quoted strings ($$...$$) — não implementamos completo, só o básico
+    if (c === '$' && sql[i + 1] === '$') inDollar = !inDollar;
+    if (c === "'" && prev !== '\\' && !inDouble && !inDollar) inSingle = !inSingle;
+    else if (c === '"' && prev !== '\\' && !inSingle && !inDollar) inDouble = !inDouble;
+    if (c === ';' && !inSingle && !inDouble && !inDollar) {
       out.push(buf);
       buf = '';
       continue;
@@ -132,28 +316,31 @@ function splitSqlStatements(sql: string): string[] {
   return out;
 }
 
-export async function getPool(): Promise<mysql.Pool> {
-  if (pool) return pool;
+export async function getPool(): Promise<CompatPool> {
+  if (pgPool) return wrapPool(pgPool);
   const cfg = getConfig();
   const host = cfg.get('db.host');
   const database = cfg.get('db.database');
   if (!host || !database) throw new Error('Banco de dados não configurado');
-  pool = mysql.createPool({
+  pgPool = new pg.Pool({
     host,
-    port: cfg.get('db.port') ?? 3306,
-    user: cfg.get('db.user') ?? 'root',
+    port: cfg.get('db.port') ?? 5432,
+    user: cfg.get('db.user') ?? 'postgres',
     password: cfg.get('db.password') ?? '',
     database,
-    waitForConnections: true,
-    connectionLimit: 10,
-    charset: 'utf8mb4',
+    max: 10,
+    idleTimeoutMillis: 30_000,
   });
-  return pool;
+  return wrapPool(pgPool);
 }
 
 export async function closePool(): Promise<void> {
-  if (pool) {
-    await pool.end();
-    pool = null;
+  if (pgPool) {
+    await pgPool.end();
+    pgPool = null;
   }
 }
+
+// Backward-compat exports (alguns arquivos importam Pool como tipo)
+export type Pool = CompatPool;
+export type Connection = CompatConnection;

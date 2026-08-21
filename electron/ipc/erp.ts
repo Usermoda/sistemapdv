@@ -1,6 +1,6 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'node:fs/promises';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import type { RowDataPacket, ResultSetHeader } from '../services/db';
 import { getPool } from '../services/db';
 import { parseNFeXml, type NFeParsed, type NFeItem } from '../services/nfe';
 
@@ -128,33 +128,9 @@ export function registerErpHandlers(): void {
     }
   );
 
-  // Product alternative codes (EAN variants, supplier codes, etc.)
-  let codesTableEnsured = false;
-  const ensureCodesTable = async () => {
-    if (codesTableEnsured) return;
-    const pool = await getPool();
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS cad_produtos_codigos (
-        id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-        id_produto INT UNSIGNED NOT NULL,
-        tipo VARCHAR(20) NOT NULL DEFAULT 'EAN' COMMENT 'EAN, FORNECEDOR, INTERNO',
-        codigo VARCHAR(50) NOT NULL,
-        embalagem VARCHAR(20) DEFAULT NULL,
-        fator DOUBLE NOT NULL DEFAULT 1,
-        id_fornecedor INT UNSIGNED DEFAULT NULL,
-        util_venda TINYINT DEFAULT 1,
-        preferencial TINYINT DEFAULT 0,
-        data_inicio DATE DEFAULT NULL,
-        inativo TINYINT DEFAULT 0,
-        data_criacao TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        KEY idx_produto (id_produto),
-        KEY idx_codigo (codigo),
-        KEY idx_fornecedor (id_fornecedor)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-    codesTableEnsured = true;
-  };
+  // Nota: cad_produtos_codigos é criada em migrations.ts (idempotente no boot).
+  // Se por algum motivo faltar em runtime, a query vai lançar erro claro.
+  const ensureCodesTable = async () => undefined;
 
   ipcMain.handle('erp:products:list-codes', async (_e, id_produto: number) => {
     await ensureCodesTable();
@@ -397,7 +373,7 @@ export function registerErpHandlers(): void {
 
       // Detect if nfce_emitidas exists to include fiscal status columns
       const [[fiscalCheck]] = await pool.query<RowDataPacket[]>(
-        `SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nfce_emitidas'`
+        `SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'nfce_emitidas'`
       );
       const hasFiscal = (fiscalCheck as { c: number }).c > 0;
 
@@ -445,8 +421,8 @@ export function registerErpHandlers(): void {
     const pool = await getPool();
     // Include inativo column if the migration has run
     const [[hasInativo]] = await pool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cad_modo_lancamento' AND COLUMN_NAME = 'inativo'`
+      `SELECT COUNT(*) AS c FROM information_schema.columns
+       WHERE table_schema = current_schema() AND table_name = 'cad_modo_lancamento' AND column_name = 'inativo'`
     );
     const inativoCol = (hasInativo as { c: number }).c > 0 ? ', COALESCE(inativo, 0) AS inativo' : ', 0 AS inativo';
     const [rows] = await pool.query<RowDataPacket[]>(
@@ -484,36 +460,8 @@ export function registerErpHandlers(): void {
   // ============================================================
   // PREÇOS / PROMOÇÕES
   // ============================================================
-  let promoTableEnsured = false;
-  const ensurePromoTable = async () => {
-    if (promoTableEnsured) return;
-    const pool = await getPool();
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS cad_produtos_promocao (
-        id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-        id_produto INT UNSIGNED NOT NULL,
-        descricao VARCHAR(100) DEFAULT NULL,
-        vr_promocao DOUBLE NOT NULL DEFAULT 0,
-        quantidade_minima INT UNSIGNED NOT NULL DEFAULT 1 COMMENT 'Aplica quando qtd na venda >= este valor',
-        data_inicio DATE NOT NULL,
-        data_fim DATE DEFAULT NULL,
-        inativo TINYINT DEFAULT 0,
-        data_criacao TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        KEY idx_produto (id_produto),
-        KEY idx_ativo (inativo, data_inicio, data_fim)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-    // Add column for pre-existing tables that lack it
-    const [colRows] = await pool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cad_produtos_promocao' AND COLUMN_NAME = 'quantidade_minima'`
-    );
-    if ((colRows[0] as { c: number }).c === 0) {
-      await pool.query(`ALTER TABLE cad_produtos_promocao ADD COLUMN quantidade_minima INT UNSIGNED NOT NULL DEFAULT 1`);
-    }
-    promoTableEnsured = true;
-  };
+  // cad_produtos_promocao é criada em migrations.ts (idempotente no boot).
+  const ensurePromoTable = async () => undefined;
 
   ipcMain.handle(
     'erp:prices:list',
@@ -528,18 +476,18 @@ export function registerErpHandlers(): void {
       let sql = `SELECT p.id, p.nome_produto, p.cod_barra, p.unidade, p.vr_compra, p.vr_venda, p.vr_venda_2, p.estoque, p.id_tipo, t.nome_tipo,
                         (SELECT pr.vr_promocao FROM cad_produtos_promocao pr
                          WHERE pr.id_produto = p.id AND pr.inativo = 0
-                           AND pr.data_inicio <= CURDATE()
-                           AND (pr.data_fim IS NULL OR pr.data_fim >= CURDATE())
+                           AND pr.data_inicio <= CURRENT_DATE
+                           AND (pr.data_fim IS NULL OR pr.data_fim >= CURRENT_DATE)
                          ORDER BY pr.vr_promocao ASC, pr.quantidade_minima ASC LIMIT 1) AS vr_promocao_ativo,
                         (SELECT pr.quantidade_minima FROM cad_produtos_promocao pr
                          WHERE pr.id_produto = p.id AND pr.inativo = 0
-                           AND pr.data_inicio <= CURDATE()
-                           AND (pr.data_fim IS NULL OR pr.data_fim >= CURDATE())
+                           AND pr.data_inicio <= CURRENT_DATE
+                           AND (pr.data_fim IS NULL OR pr.data_fim >= CURRENT_DATE)
                          ORDER BY pr.vr_promocao ASC, pr.quantidade_minima ASC LIMIT 1) AS promocao_qty_min,
                         (SELECT pr.data_fim FROM cad_produtos_promocao pr
                          WHERE pr.id_produto = p.id AND pr.inativo = 0
-                           AND pr.data_inicio <= CURDATE()
-                           AND (pr.data_fim IS NULL OR pr.data_fim >= CURDATE())
+                           AND pr.data_inicio <= CURRENT_DATE
+                           AND (pr.data_fim IS NULL OR pr.data_fim >= CURRENT_DATE)
                          ORDER BY pr.vr_promocao ASC, pr.quantidade_minima ASC LIMIT 1) AS promocao_data_fim
                  FROM cad_produtos p
                  LEFT JOIN cad_produtos_tipo t ON t.id = p.id_tipo
@@ -624,9 +572,9 @@ export function registerErpHandlers(): void {
                  FROM cad_produtos_promocao pr
                  LEFT JOIN cad_produtos p ON p.id = pr.id_produto
                  WHERE 1=1`;
-      if (args.status === 'active') sql += ` AND pr.inativo = 0 AND pr.data_inicio <= CURDATE() AND (pr.data_fim IS NULL OR pr.data_fim >= CURDATE())`;
-      if (args.status === 'scheduled') sql += ` AND pr.inativo = 0 AND pr.data_inicio > CURDATE()`;
-      if (args.status === 'expired') sql += ` AND (pr.data_fim IS NOT NULL AND pr.data_fim < CURDATE())`;
+      if (args.status === 'active') sql += ` AND pr.inativo = 0 AND pr.data_inicio <= CURRENT_DATE AND (pr.data_fim IS NULL OR pr.data_fim >= CURRENT_DATE)`;
+      if (args.status === 'scheduled') sql += ` AND pr.inativo = 0 AND pr.data_inicio > CURRENT_DATE`;
+      if (args.status === 'expired') sql += ` AND (pr.data_fim IS NOT NULL AND pr.data_fim < CURRENT_DATE)`;
       sql += ' ORDER BY pr.data_inicio DESC, pr.id DESC LIMIT 500';
       const [rows] = await pool.query<RowDataPacket[]>(sql);
       return rows;
@@ -732,8 +680,8 @@ export function registerErpHandlers(): void {
       const offset = args.offset ?? 0;
       // Check if the new columns exist (backward compat)
       const [[hasTipo]] = await pool.query<RowDataPacket[]>(
-        `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
-         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mv_estoque_historico' AND COLUMN_NAME = 'tipo'`
+        `SELECT COUNT(*) AS c FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = 'mv_estoque_historico' AND column_name = 'tipo'`
       );
       const tipoSel = (hasTipo as { c: number }).c > 0 ? ', h.tipo, h.motivo' : `, 'N' AS tipo, NULL AS motivo`;
       let sql = `SELECT h.*${tipoSel}, p.nome_produto, f.nome_fornecedor, ml.modo_lancamento
@@ -1180,7 +1128,7 @@ export function registerErpHandlers(): void {
       `SELECT COALESCE(SUM(vr_parcela),0) AS total, COUNT(*) AS qtd
        FROM cad_lancamentos
        WHERE (data_confirmacao IS NULL OR data_confirmacao = '0000-00-00')
-         AND data_vencimento < CURDATE()`
+         AND data_vencimento < CURRENT_DATE`
     );
     return { receivable, payable, overdue };
   });
@@ -1188,8 +1136,8 @@ export function registerErpHandlers(): void {
   ipcMain.handle('erp:finance:payment-methods', async () => {
     const pool = await getPool();
     const [[hasInativo]] = await pool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cad_modo_lancamento' AND COLUMN_NAME = 'inativo'`
+      `SELECT COUNT(*) AS c FROM information_schema.columns
+       WHERE table_schema = current_schema() AND table_name = 'cad_modo_lancamento' AND column_name = 'inativo'`
     );
     const whereClause = (hasInativo as { c: number }).c > 0 ? 'WHERE COALESCE(inativo, 0) = 0' : '';
     const [rows] = await pool.query<RowDataPacket[]>(
@@ -1205,11 +1153,11 @@ export function registerErpHandlers(): void {
     const pool = await getPool();
     const [[today]] = await pool.query<RowDataPacket[]>(
       `SELECT COALESCE(SUM(vr_total),0) AS total, COUNT(*) AS pedidos
-       FROM mv_vendas WHERE data_venda = CURDATE()`
+       FROM mv_vendas WHERE data_venda = CURRENT_DATE`
     );
     const [[month]] = await pool.query<RowDataPacket[]>(
       `SELECT COALESCE(SUM(vr_total),0) AS total, COUNT(*) AS pedidos
-       FROM mv_vendas WHERE YEAR(data_venda) = YEAR(CURDATE()) AND MONTH(data_venda) = MONTH(CURDATE())`
+       FROM mv_vendas WHERE date_trunc('month', data_venda) = date_trunc('month', CURRENT_DATE)`
     );
     const [[products]] = await pool.query<RowDataPacket[]>(
       `SELECT COUNT(*) AS total FROM cad_produtos WHERE inativo IS NULL OR inativo = 0`
@@ -1220,14 +1168,14 @@ export function registerErpHandlers(): void {
     const [dailyChart] = await pool.query<RowDataPacket[]>(
       `SELECT data_venda AS dia, COALESCE(SUM(vr_total),0) AS total
        FROM mv_vendas
-       WHERE data_venda >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+       WHERE data_venda >= CURRENT_DATE - INTERVAL '6 days'
        GROUP BY data_venda ORDER BY data_venda ASC`
     );
     const [topProducts] = await pool.query<RowDataPacket[]>(
       `SELECT p.nome_produto, SUM(m.quant) AS total_qtd, SUM(m.vr_total) AS total_valor
        FROM mv_vendas_movimento m
        JOIN cad_produtos p ON p.id = m.id_produto
-       WHERE m.data_venda >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+       WHERE m.data_venda >= CURRENT_DATE - INTERVAL '30 days'
        GROUP BY p.id, p.nome_produto
        ORDER BY total_qtd DESC LIMIT 5`
     );

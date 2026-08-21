@@ -1,4 +1,4 @@
-import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import type { RowDataPacket, ResultSetHeader } from '../db';
 import { getPool } from '../db';
 import { getConfig } from '../config';
 import { emitirNFCe, consultarNFCe, cancelarNFCe, type FocusNFCePayload, type FocusNFCeItem } from './focusnfe';
@@ -168,7 +168,10 @@ export async function emitSaleAsNFCe(idVenda: number): Promise<EmissionResult> {
   const [insertRes] = await pool.query<ResultSetHeader>(
     `INSERT INTO nfce_emitidas (id_venda, controle_venda, ref_externa, provider, ambiente, status, payload_json, data_emissao)
      VALUES (?, ?, ?, ?, ?, 'pendente', ?, NOW())
-     ON DUPLICATE KEY UPDATE payload_json = VALUES(payload_json), status = 'pendente', data_atualizacao = NOW()`,
+     ON CONFLICT (ref_externa) DO UPDATE
+       SET payload_json = EXCLUDED.payload_json,
+           status = 'pendente',
+           data_atualizacao = NOW()`,
     [sale.header.id, sale.header.controle, ref, provider, cfg.get('fiscal.ambiente') ?? 'homologacao', JSON.stringify(payload)]
   );
 
@@ -298,7 +301,7 @@ export async function retryPending(maxItems = 20): Promise<{ processed: number; 
 export async function listPendingEmissions() {
   const pool = await getPool();
   const [[check]] = await pool.query<RowDataPacket[]>(
-    `SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'nfce_emitidas'`
+    `SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = 'nfce_emitidas'`
   );
   if ((check as { c: number }).c === 0) return [];
   const [rows] = await pool.query<RowDataPacket[]>(

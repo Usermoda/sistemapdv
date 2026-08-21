@@ -13,7 +13,7 @@ import {
   type ConnectionConfig,
 } from '../services/db';
 import { getConfig } from '../services/config';
-import { installBundledMariaDB, startBundledMysql, stopBundledMysql, isBundledInstalled } from '../services/mysqlInstaller';
+import { installBundledPostgres, startBundledPostgres, stopBundledPostgres, isBundledInstalled } from '../services/pgInstaller';
 import { runMigrations } from '../services/migrations';
 
 export function registerDbHandlers(): void {
@@ -71,84 +71,50 @@ export function registerDbHandlers(): void {
 
   ipcMain.handle('db:install-bundled', async (event) => {
     const sender = BrowserWindow.fromWebContents(event.sender);
-    const res = await installBundledMariaDB((u) => {
+    const res = await installBundledPostgres((u) => {
       sender?.webContents.send('db:install-bundled-progress', u);
     });
     return res;
   });
 
   ipcMain.handle('db:start-bundled', async (_e, port?: number) => {
-    if (!isBundledInstalled()) return { ok: false, error: 'MariaDB bundled não instalado' };
-    return startBundledMysql(port ?? 3306);
+    if (!isBundledInstalled()) return { ok: false, error: 'PostgreSQL bundled não instalado' };
+    return startBundledPostgres(port ?? 5432);
   });
 
-  // Habilita/desabilita compartilhamento do MariaDB portable na rede local.
-  // Fluxo: grava a flag, roda GRANT root@%, para/inicia o mysqld com novo bind.
-  // Retorna os IPs LAN da máquina para o usuário informar aos terminais.
+  // Compartilhamento LAN no PostgreSQL exige editar pg_hba.conf e postgresql.conf
+  // (listen_addresses='*' e host all all 0.0.0.0/0 md5). Não implementado ainda —
+  // por enquanto o usuário pode habilitar manualmente. Handler mantido pra o
+  // front continuar chamando sem quebrar.
   ipcMain.handle('db:set-lan-sharing', async (_e, enabled: boolean) => {
-    const cfg = getConfig();
-    const prev = !!cfg.get('db.shareOnLan');
-    cfg.set('db.shareOnLan', enabled);
-
-    // Só faz sentido restart+GRANT se estamos usando o MariaDB portable
-    const bundled = !!cfg.get('db.bundled');
-    if (bundled && enabled) {
-      try {
-        // GRANT antes de restart — precisa de conexão ativa.
-        // Não usa CREATE USER IF NOT EXISTS (MariaDB < 10.1.3 não suporta).
-        // Faz CREATE e engole o erro caso o usuário já exista.
-        const pool = await getPool();
-        try {
-          await pool.query("CREATE USER 'root'@'%' IDENTIFIED BY ''");
-        } catch (e) {
-          const msg = (e as Error).message ?? '';
-          // 1396 = ER_CANNOT_USER (usuário já existe / operação já feita)
-          if (!/1396|already exists|Operation CREATE USER failed/i.test(msg)) throw e;
-        }
-        await pool.query("GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION");
-        await pool.query('FLUSH PRIVILEGES');
-        await closePool();
-      } catch (e) {
-        return { ok: false, error: `GRANT falhou: ${(e as Error).message}` };
-      }
-    }
-
-    if (bundled && prev !== enabled) {
-      // Reinicia o servidor com o novo bind-address
-      try {
-        await stopBundledMysql();
-        const port = cfg.get('db.port') ?? 3306;
-        const r = await startBundledMysql(port);
-        if (!r.ok) return { ok: false, error: `Falha ao reiniciar: ${r.error}` };
-      } catch (e) {
-        return { ok: false, error: (e as Error).message };
-      }
-    }
-
-    // Coleta IPs LAN da máquina
-    const lanIps: string[] = [];
-    for (const nets of Object.values(os.networkInterfaces())) {
-      for (const n of nets ?? []) {
-        if (n.family === 'IPv4' && !n.internal) lanIps.push(n.address);
-      }
-    }
-
-    return { ok: true, enabled, port: cfg.get('db.port') ?? 3306, lanIps };
+    getConfig().set('db.shareOnLan', enabled);
+    const lanIps = collectLanIps();
+    return {
+      ok: true,
+      enabled,
+      port: getConfig().get('db.port') ?? 5432,
+      lanIps,
+      note: 'PG: edite pg_hba.conf e postgresql.conf manualmente por enquanto',
+    };
   });
 
   ipcMain.handle('db:get-lan-info', () => {
     const cfg = getConfig();
-    const lanIps: string[] = [];
-    for (const nets of Object.values(os.networkInterfaces())) {
-      for (const n of nets ?? []) {
-        if (n.family === 'IPv4' && !n.internal) lanIps.push(n.address);
-      }
-    }
     return {
       shareOnLan: !!cfg.get('db.shareOnLan'),
       bundled: !!cfg.get('db.bundled'),
-      port: cfg.get('db.port') ?? 3306,
-      lanIps,
+      port: cfg.get('db.port') ?? 5432,
+      lanIps: collectLanIps(),
     };
   });
+}
+
+function collectLanIps(): string[] {
+  const out: string[] = [];
+  for (const nets of Object.values(os.networkInterfaces())) {
+    for (const n of nets ?? []) {
+      if (n.family === 'IPv4' && !n.internal) out.push(n.address);
+    }
+  }
+  return out;
 }

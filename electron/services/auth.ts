@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import type { RowDataPacket, ResultSetHeader } from './db';
 import { getPool } from './db';
 
 export type Session = {
