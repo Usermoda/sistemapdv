@@ -42,19 +42,25 @@ jobs:
       - name: Publicar artefato do build (sempre)
         uses: actions/upload-artifact@v4
         with:
-          name: sistema-pdv-windows-${{ github.ref_name }}
+          name: bipa-windows-${{ github.ref_name }}
           path: |
             release/*.exe
             release/*.zip
+            release/*.yml
+            release/*.blockmap
           if-no-files-found: error
           retention-days: 30
 
       - name: Publicar no GitHub Releases (apenas em tags vX.Y.Z)
+        # `latest.yml` e `*.blockmap` são obrigatórios pro electron-updater —
+        # sem eles os clientes não detectam a atualização.
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          name: Sistema PDV ${{ github.ref_name }}
+          name: Bipa ${{ github.ref_name }}
           generate_release_notes: true
           files: |
             release/*.exe
             release/*.zip
+            release/latest.yml
+            release/*.blockmap
