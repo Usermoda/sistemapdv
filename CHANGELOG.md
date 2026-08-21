@@ -8,6 +8,15 @@ e o projeto adota [Versionamento Semântico (SemVer)](https://semver.org/lang/pt
 
 ## [Não lançado]
 
+## [0.1.1] - 2026-08-21
+
+### Alterado
+- **Release de teste OTA** — primeira versão publicada com `electron-updater`
+  ativo. Se você está vendo esta linha e o banner apareceu, é porque o
+  fluxo funcionou 🎉
+
+## [Não lançado — 0.1.0]
+
 ### Adicionado
 - **Atualizações OTA (over-the-air)** via `electron-updater` + GitHub Releases.
   - `electron/services/updater.ts` centraliza o ciclo: check automático 10s
